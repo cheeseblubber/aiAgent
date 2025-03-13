@@ -7,7 +7,13 @@ export const API_ENDPOINTS = {
 } as const
 
 // HTTP API functions
-export const sendChatMessage = async (message: string): Promise<Response> => {
+interface ChatResponse {
+  success: boolean;
+  message?: string;
+  error?: string;
+}
+
+export const sendChatMessage = async (message: string): Promise<ChatResponse> => {
   const response = await fetch(API_ENDPOINTS.chat, {
     method: 'POST',
     headers: {
@@ -16,11 +22,13 @@ export const sendChatMessage = async (message: string): Promise<Response> => {
     body: JSON.stringify({ message }),
   })
 
-  if (!response.ok) {
-    throw new Error('Failed to send message')
+  const data = await response.json()
+
+  if (!response.ok || !data.success) {
+    throw new Error(data.error || 'Failed to send message')
   }
 
-  return response
+  return data
 }
 
 // WebSocket API functions
@@ -30,6 +38,5 @@ export const createWebSocket = (url: string): WebSocket => {
 }
 
 export const createBrowserWebSocket = (): WebSocket => {
-  console.log(API_ENDPOINTS.browserWs)
   return createWebSocket(API_ENDPOINTS.browserWs)
 }

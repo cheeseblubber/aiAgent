@@ -7,4 +7,5 @@
 7. My API is rest
 8. I prefer to use functional style of programming
 9. I use yarn
-10. do not hardcode client side api calls use a helper function
+10. For new client side api refer to api folder and follow pattern in index.ts
+11. folder structure is root -> client, server. root will run yarn dev which wil start both client and server

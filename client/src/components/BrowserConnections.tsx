@@ -1,26 +1,62 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { createBrowserWebSocket } from '../api'
 
-interface BrowserConnection {
-  id: string
-  url: string
-  timestamp: string
+interface BrowserUpdate {
+  type: 'screenshot' | 'page' | 'error'
+  data: any
+}
+
+interface BrowserState {
+  url?: string
+  title?: string
+  isLoading: boolean
 }
 
 export default function BrowserConnections() {
-  const [connections, setConnections] = useState<BrowserConnection[]>([])
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [browserState, setBrowserState] = useState<BrowserState>({
+    isLoading: true
+  })
   const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
+
+  const updateCanvas = useCallback((imageData: string) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const img = new Image()
+    img.onload = () => {
+      canvas.width = img.width
+      canvas.height = img.height
+      ctx.drawImage(img, 0, 0)
+    }
+    img.src = `data:image/jpeg;base64,${imageData}`
+  }, [])
 
   useEffect(() => {
     const ws = createBrowserWebSocket()
 
     ws.onopen = () => {
       setWsStatus('connected')
+      setBrowserState(prev => ({ ...prev, isLoading: true }))
     }
 
     ws.onmessage = (event) => {
-      const data = JSON.parse(event.data)
-      setConnections(data)
+      const update = JSON.parse(event.data)
+      
+      if (update.type === 'screenshot') {
+        updateCanvas(update.data.image)
+        setBrowserState(prev => ({ ...prev, isLoading: false }))
+      } else if (update.type === 'page') {
+        setBrowserState(prev => ({
+          ...prev,
+          url: update.data.url,
+          title: update.data.title,
+          isLoading: true
+        }))
+      }
     }
 
     ws.onclose = () => {
@@ -30,12 +66,14 @@ export default function BrowserConnections() {
     return () => {
       ws.close()
     }
-  }, [])
+  }, [updateCanvas])
+
+
 
   return (
-    <div className="h-full p-6">
+    <div className="h-full p-6 flex flex-col">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-gray-800">Browser Connections</h2>
+        <h2 className="text-xl font-semibold text-gray-800">Browser Preview</h2>
         <div className="flex items-center gap-2">
           <div className={`h-2 w-2 rounded-full ${
             wsStatus === 'connected' ? 'bg-green-500' :
@@ -45,30 +83,24 @@ export default function BrowserConnections() {
           <span className="text-sm text-gray-600 capitalize">{wsStatus}</span>
         </div>
       </div>
+
+      {browserState.url && (
+        <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <p className="font-medium text-gray-800 truncate">{browserState.title || 'Untitled'}</p>
+          <p className="text-sm text-gray-600 truncate">{browserState.url}</p>
+        </div>
+      )}
       
-      <div className="space-y-4">
-        {connections.length === 0 ? (
-          <div className="rounded-lg border border-gray-200 p-4 text-center text-gray-500">
-            No active browser connections
+      <div className="flex-1 relative rounded-lg border border-gray-200 bg-white overflow-hidden">
+        {browserState.isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-50 bg-opacity-75">
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-900 border-t-transparent"></div>
           </div>
-        ) : (
-          connections.map((connection) => (
-            <div
-              key={connection.id}
-              className="rounded-lg border border-gray-200 p-4 hover:border-gray-300"
-            >
-              <div className="flex items-center justify-between">
-                <div className="truncate">
-                  <p className="font-medium text-gray-800">{connection.url}</p>
-                  <p className="text-sm text-gray-500">ID: {connection.id}</p>
-                </div>
-                <time className="text-sm text-gray-500">
-                  {new Date(connection.timestamp).toLocaleTimeString()}
-                </time>
-              </div>
-            </div>
-          ))
         )}
+        <canvas
+          ref={canvasRef}
+          className="w-full h-full object-contain"
+        />
       </div>
     </div>
   )

@@ -14,14 +14,20 @@ function ChatComponent() {
     e.preventDefault()
     if (!input.trim()) return
 
-    const newMessage = { content: input, sender: 'user' as const }
-    setMessages([...messages, newMessage])
+    const userMessage = { content: input, sender: 'user' as const }
+    setMessages([...messages, userMessage])
     setInput('')
 
     try {
-      await sendChatMessage(input)
+      const response = await sendChatMessage(input)
+      if (response.success && response.message) {
+        const aiMessage = { content: response.message, sender: 'ai' as const }
+        setMessages(prev => [...prev, aiMessage])
+      }
     } catch (error) {
       console.error('Error sending message:', error)
+      const errorMessage = { content: 'Sorry, something went wrong. Please try again.', sender: 'ai' as const }
+      setMessages(prev => [...prev, errorMessage])
     }
   }
 
