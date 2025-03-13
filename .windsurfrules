@@ -1,0 +1,10 @@
+1. My build system is vite
+2. My server is fastify
+3. My database is postgres
+4. My ORM is prisma
+5. My client is react
+6. My styling is tailwindcss
+7. My API is rest
+8. I prefer to use functional style of programming
+9. I use yarn
+10. do not hardcode client side api calls use a helper function

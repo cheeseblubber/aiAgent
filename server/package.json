@@ -10,14 +10,16 @@
   },
   "dependencies": {
     "@fastify/cors": "^8.3.0",
+    "@fastify/websocket": "^8.2.0",
     "@prisma/client": "^5.0.0",
     "dotenv": "^16.3.1",
     "fastify": "^4.21.0",
     "playwright": "^1.51.0",
-    "prisma": "^6.3.1"
+    "prisma": "^5.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.5.0",
+    "@types/ws": "^8.18.0",
     "nodemon": "^3.0.1",
     "prisma": "^5.0.0",
     "ts-node": "^10.9.1",

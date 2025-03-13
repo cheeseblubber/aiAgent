@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { sendChatMessage } from '../api/chat'
+import { sendChatMessage } from '../api'
 
 interface Message {
   content: string
