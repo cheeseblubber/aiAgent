@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { sendChatMessage } from '../api/chat'
 
 interface Message {
   content: string
@@ -9,12 +10,19 @@ function ChatComponent() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim()) return
 
-    setMessages([...messages, { content: input, sender: 'user' }])
+    const newMessage = { content: input, sender: 'user' as const }
+    setMessages([...messages, newMessage])
     setInput('')
+
+    try {
+      await sendChatMessage(input)
+    } catch (error) {
+      console.error('Error sending message:', error)
+    }
   }
 
   return (

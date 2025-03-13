@@ -13,6 +13,16 @@ server.get('/health', async () => {
   return { status: 'ok' }
 })
 
+interface ChatMessage {
+  message: string
+}
+
+server.post<{ Body: ChatMessage }>('/chat', async (request, reply) => {
+  const { message } = request.body
+  // Process message here if needed
+  return reply.code(200).send({ success: true })
+})
+
 const start = async () => {
   try {
     await server.listen({ port: 3000 })
