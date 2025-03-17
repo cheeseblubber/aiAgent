@@ -11,7 +11,6 @@ import { chromium } from "playwright";
 import { openAiChat } from "./externalApi";
 import { computerUseLoop } from "./computerUse";
 
-
 const server = fastify({
   logger: true,
   maxParamLength: 1000,
@@ -34,7 +33,7 @@ server.get("/health", async () => {
 
 interface ChatMessage {
   message: string;
-  type?: 'text' | 'computer-use';
+  type?: "text" | "computer-use";
 }
 
 // Track all connected WebSocket clients
@@ -100,6 +99,37 @@ server.register(async function (server: FastifyInstance) {
     async (connection: SocketStream, req) => {
       console.log("Client connected to browser WebSocket");
       connectedClients.add(connection.socket);
+
+      // Handle incoming messages
+      connection.socket.on("message", async (data) => {
+        try {
+          const message = JSON.parse(data.toString());
+          if (message.type === "text") {
+            // Ensure browser is initialized
+            const { page } = await initBrowser();
+            if (!page) {
+              throw new Error("Browser not initialized");
+            }
+
+            // Use computerUse to handle the message
+            await computerUseLoop(page, message.message, (update) => {
+              if (connection.socket.readyState === WebSocket.OPEN) {
+                connection.socket.send(JSON.stringify(update));
+              }
+            });
+          }
+        } catch (error) {
+          console.error("Error handling message:", error);
+          if (connection.socket.readyState === WebSocket.OPEN) {
+            connection.socket.send(
+              JSON.stringify({
+                type: "error",
+                data: "Error processing message",
+              })
+            );
+          }
+        }
+      });
 
       // Ensure browser is initialized
       const { page } = await initBrowser();
@@ -169,18 +199,18 @@ process.on("SIGTERM", async () => {
 server.post<{ Body: ChatMessage }>("/chat", async (request, reply) => {
   try {
     const { message } = request.body;
-    
+
     const aiResponse = await openAiChat(message);
-    
-    return reply.code(200).send({ 
+
+    return reply.code(200).send({
       success: true,
-      message: aiResponse
+      message: aiResponse,
     });
   } catch (error) {
-    console.error('Error processing chat message:', error);
-    return reply.code(500).send({ 
-      success: false, 
-      error: 'Failed to process message'
+    console.error("Error processing chat message:", error);
+    return reply.code(500).send({
+      success: false,
+      error: "Failed to process message",
     });
   }
 });
