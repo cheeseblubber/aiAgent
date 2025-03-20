@@ -207,11 +207,11 @@ server.post<{ Body: ChatMessage }>("/chat", async (request, reply) => {
         error: "Failed to process message",
       });
     }
-    const response = await computerUseLoop(page, message);
+    computerUseLoop(page, message);
 
     return reply.code(200).send({
       success: true,
-      message: response,
+      message: "computer use triggered",
     });
   } catch (error) {
     console.error("Error processing chat message:", error);

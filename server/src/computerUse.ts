@@ -141,6 +141,7 @@ export async function computerUseLoop(page: Page, userPrompt: string, onUpdate?:
         },
         ...toolsList,
       ],
+      parallel_tool_calls: false,
       input: [{
         role: 'user',
         content: userPrompt,
@@ -153,6 +154,8 @@ export async function computerUseLoop(page: Page, userPrompt: string, onUpdate?:
     });
 
     while (true) {
+      const functionCalls = response.output.filter((item) => item.type === 'function_call')
+
       const computerCalls = response.output.filter(
         (item): item is ResponseComputerToolCall => 
           item.type === 'computer_call' && 
@@ -161,14 +164,50 @@ export async function computerUseLoop(page: Page, userPrompt: string, onUpdate?:
           'pending_safety_checks' in item
       );
 
-      if (computerCalls.length === 0) {
-        console.log('No computer call found. Output from model:');
+      if (computerCalls.length === 0 && functionCalls.length === 0) {
+        console.log('No computer call or function call found. Output from model:');
         response.output.forEach((item) => {
           console.log(JSON.stringify(item, null, 2));
         });
         break;
       }
 
+      if (functionCalls.length > 0) {
+        const functionCall = functionCalls[0];
+        const name = functionCall.name;
+        const args = JSON.parse(functionCall.arguments);
+        const lastCallId = functionCall.call_id;
+        
+        // Execute the function
+        const result = await tools[name].handler(args, { page });
+
+        const screenshotBuffer = await page.screenshot();
+        const screenshotBase64 = screenshotBuffer.toString('base64');
+
+
+        response = await openai.responses.create({
+          model: 'computer-use-preview',
+          previous_response_id: response.id,
+          tools: [{
+            type: 'computer-preview',
+            display_width: 1024,
+            display_height: 768,
+            environment: 'browser',
+          },
+          ...toolsList,
+        ],
+          input: [{
+            call_id: lastCallId,
+            type: 'computer_call_output',
+            output: {
+              type: 'computer_screenshot',
+              image_url: `data:image/png;base64,${screenshotBase64}`,
+            }
+          }],
+          truncation: 'auto',
+        });
+      }
+        
       // We expect at most one computer call per response
       const computerCall = computerCalls[0];
       const lastCallId = computerCall.call_id;
