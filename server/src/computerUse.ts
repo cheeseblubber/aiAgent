@@ -128,6 +128,7 @@ export async function handleModelAction(page: Page, action: ResponseComputerActi
 
 export async function computerUseLoop(page: Page, userPrompt: string, onUpdate?: (data: any) => void) {
   try {
+
     // Initial request to start the computer use loop
     let response = await openai.responses.create({
       model: 'computer-use-preview',
@@ -208,7 +209,9 @@ export async function computerUseLoop(page: Page, userPrompt: string, onUpdate?:
           display_width: 1024,
           display_height: 768,
           environment: 'browser',
-        }],
+        },
+        ...toolsList,
+      ],
         input: [{
           call_id: lastCallId,
           type: 'computer_call_output',
