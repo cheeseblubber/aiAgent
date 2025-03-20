@@ -1,5 +1,6 @@
 import { Page } from 'playwright';
 import OpenAI from 'openai';
+import { tools, toolsList } from './tools';
 
 type Click = {
   type: 'click';
@@ -130,12 +131,15 @@ export async function computerUseLoop(page: Page, userPrompt: string, onUpdate?:
     // Initial request to start the computer use loop
     let response = await openai.responses.create({
       model: 'computer-use-preview',
-      tools: [{
-        type: "computer-preview",
-        display_width: 1024,
-        display_height: 768,
-        environment: 'browser',
-      }],
+      tools: [
+        {
+          type: 'computer-preview',
+          display_width: 1024,
+          display_height: 768,
+          environment: 'browser',
+        },
+        ...toolsList,
+      ],
       input: [{
         role: 'user',
         content: userPrompt,
