@@ -129,9 +129,9 @@ export async function computerUseLoop(page: Page, userPrompt: string, onUpdate?:
   try {
     // Initial request to start the computer use loop
     let response = await openai.responses.create({
-      model: 'computer-preview',
+      model: 'computer-use-preview',
       tools: [{
-        type: 'computer-preview',
+        type: "computer-preview",
         display_width: 1024,
         display_height: 768,
         environment: 'browser',
@@ -142,7 +142,7 @@ export async function computerUseLoop(page: Page, userPrompt: string, onUpdate?:
       }],
       reasoning: {
         generate_summary: 'concise',
-        effort: 'low',
+        effort: 'medium',
       },
       truncation: 'auto',
     });
@@ -197,7 +197,7 @@ export async function computerUseLoop(page: Page, userPrompt: string, onUpdate?:
 
       // Send the screenshot back as a computer_call_output
       response = await openai.responses.create({
-        model: 'computer-preview',
+        model: 'computer-use-preview',
         previous_response_id: response.id,
         tools: [{
           type: 'computer-preview',

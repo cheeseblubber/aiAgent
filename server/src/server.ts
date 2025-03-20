@@ -52,7 +52,7 @@ let page: Page | null = null;
 async function initBrowser() {
   if (!browser) {
     browser = await chromium.launch({
-      headless: true,
+      headless: false,
     });
     const context = await browser.newContext({
       viewport: { width: 1280, height: 720 },
@@ -200,11 +200,18 @@ server.post<{ Body: ChatMessage }>("/chat", async (request, reply) => {
   try {
     const { message } = request.body;
 
-    const aiResponse = await openAiChat(message);
+    // const aiResponse = await openAiChat(message);
+    if(!page) {
+      return reply.code(500).send({
+        success: false,
+        error: "Failed to process message",
+      });
+    }
+    const response = await computerUseLoop(page, message);
 
     return reply.code(200).send({
       success: true,
-      message: aiResponse,
+      message: response,
     });
   } catch (error) {
     console.error("Error processing chat message:", error);
