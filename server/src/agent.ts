@@ -199,27 +199,26 @@ export class Agent {
   constructor(
     options: {
       model?: string;
-      computer?: Computer;
+      computer: Computer;
       tools?: any[];
       acknowledgeSafetyCheckCallback?: (message: string) => boolean;
-    } = {}
+    }
   ) {
     this.model = options.model || "computer-use-preview";
-    this.computer = options.computer;
+    this.computer = options.computer; // Computer is now required
     this.tools = options.tools || [];
     this.printSteps = true;
     this.debug = false;
     this.showImages = false;
     this.acknowledgeSafetyCheckCallback = options.acknowledgeSafetyCheckCallback || (() => false);
 
-    if (this.computer) {
-      this.tools.push({
-        type: "computer-preview",
-        display_width: this.computer.dimensions[0],
-        display_height: this.computer.dimensions[1],
-        environment: this.computer.environment,
-      });
-    }
+    // Computer is always available, so no need to check
+    this.tools.push({
+      type: "computer-preview",
+      display_width: this.computer.dimensions[0],
+      display_height: this.computer.dimensions[1],
+      environment: this.computer.environment,
+    });
   }
 
   debugPrint(...args: any[]): void {
