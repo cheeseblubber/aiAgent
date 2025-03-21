@@ -8,34 +8,49 @@ export class Computer {
   environment: string;
   page?: Page;
 
-  constructor(dimensions: [number, number] = [1024, 768], environment: string = "browser", page?: Page) {
+  constructor(
+    dimensions: [number, number] = [1024, 768],
+    environment: string = "browser",
+    page?: Page
+  ) {
     this.dimensions = dimensions;
     this.environment = environment;
     this.page = page;
   }
 
-  async click(x: number, y: number, button: "left" | "right" | "wheel" | "back" | "forward" = "left"): Promise<void> {
+  async click(
+    x: number,
+    y: number,
+    button: "left" | "right" | "wheel" | "back" | "forward" = "left"
+  ): Promise<void> {
     if (!this.page) {
       throw new Error("Page not initialized");
     }
-    
+
     const mappedButton =
       button === "wheel"
         ? "middle"
         : button === "back" || button === "forward"
         ? "left"
         : button;
-    
+
     console.log(`Action: click at (${x}, ${y}) with button '${button}'`);
     await this.page.mouse.click(x, y, { button: mappedButton });
   }
 
-  async scroll(x: number, y: number, scroll_x: number, scroll_y: number): Promise<void> {
+  async scroll(
+    x: number,
+    y: number,
+    scroll_x: number,
+    scroll_y: number
+  ): Promise<void> {
     if (!this.page) {
       throw new Error("Page not initialized");
     }
-    
-    console.log(`Action: scroll at (${x}, ${y}) with offsets (scrollX=${scroll_x}, scrollY=${scroll_y})`);
+
+    console.log(
+      `Action: scroll at (${x}, ${y}) with offsets (scrollX=${scroll_x}, scrollY=${scroll_y})`
+    );
     await this.page.mouse.move(x, y);
     await this.page.evaluate(`window.scrollBy(${scroll_x}, ${scroll_y})`);
   }
@@ -44,7 +59,7 @@ export class Computer {
     if (!this.page) {
       throw new Error("Page not initialized");
     }
-    
+
     for (const k of keys) {
       console.log(`Action: keypress '${k}'`);
       if (k.includes("ENTER")) {
@@ -61,7 +76,7 @@ export class Computer {
     if (!this.page) {
       throw new Error("Page not initialized");
     }
-    
+
     console.log(`Action: type text '${text}'`);
     await this.page.keyboard.type(text);
   }
@@ -70,7 +85,7 @@ export class Computer {
     if (!this.page) {
       throw new Error("Page not initialized");
     }
-    
+
     console.log(`Action: wait for ${ms}ms`);
     await this.page.waitForTimeout(ms);
   }
@@ -80,7 +95,7 @@ export class Computer {
     if (!this.page) {
       throw new Error("Page not initialized");
     }
-    
+
     // Take an actual screenshot using Playwright
     const screenshotBuffer = await this.page.screenshot({ type: "png" });
     return screenshotBuffer.toString("base64");
@@ -90,7 +105,7 @@ export class Computer {
     if (!this.page) {
       throw new Error("Page not initialized");
     }
-    
+
     return this.page.url();
   }
 }
@@ -134,7 +149,7 @@ export function checkBlocklistedUrl(url: string): void {
   const blocklist: string[] = [
     // Add blocklisted domains/patterns here
   ];
-  
+
   for (const pattern of blocklist) {
     if (url.includes(pattern)) {
       throw new Error(`URL contains blocklisted pattern: ${pattern}`);
@@ -182,11 +197,15 @@ interface ResponseItemBase {
   role?: string;
 }
 
-type ResponseItem = ComputerCallItem | MessageItem | FunctionCallItem | ResponseItemBase;
+type ResponseItem =
+  | ComputerCallItem
+  | MessageItem
+  | FunctionCallItem
+  | ResponseItemBase;
 
 export class Agent {
   model: string;
-  computer?: Computer;
+  computer: Computer;
   tools: any[];
   printSteps: boolean;
   debug: boolean;
@@ -196,23 +215,21 @@ export class Agent {
   /**
    * A sample agent class that can be used to interact with a computer.
    */
-  constructor(
-    options: {
-      model?: string;
-      computer: Computer;
-      tools?: any[];
-      acknowledgeSafetyCheckCallback?: (message: string) => boolean;
-    }
-  ) {
+  constructor(options: {
+    model?: string;
+    computer: Computer;
+    tools?: any[];
+    acknowledgeSafetyCheckCallback?: (message: string) => boolean;
+  }) {
     this.model = options.model || "computer-use-preview";
     this.computer = options.computer; // Computer is now required
     this.tools = options.tools || [];
     this.printSteps = true;
     this.debug = false;
     this.showImages = false;
-    this.acknowledgeSafetyCheckCallback = options.acknowledgeSafetyCheckCallback || (() => false);
+    this.acknowledgeSafetyCheckCallback =
+      options.acknowledgeSafetyCheckCallback || (() => false);
 
-    // Computer is always available, so no need to check
     this.tools.push({
       type: "computer-preview",
       display_width: this.computer.dimensions[0],
@@ -240,23 +257,31 @@ export class Agent {
       const functionItem = responseElement as FunctionCallItem;
       const name = functionItem.name;
       const args = JSON.parse(functionItem.arguments);
-      
+
       if (this.printSteps) {
         console.log(`${name}(${JSON.stringify(args)})`);
       }
 
-      const result = await tools[name].handler(args, { page: this.computer!.page! });
-
-      if (this.computer && typeof (this.computer as any)[name] === "function") {
-        const method = (this.computer as any)[name].bind(this.computer);
-        await method(args);
+      if (this.computer.page) {
+        const result = await tools[name].handler(args, {
+          page: this.computer.page,
+        });
+        return [
+          {
+            type: "function_call_output",
+            call_id: functionItem.call_id,
+            output: result,
+          },
+        ];
       }
-      
-      return [{
-        type: "function_call_output",
-        call_id: functionItem.call_id,
-        output: result,
-      }];
+
+      return [
+        {
+          type: "function_call_output",
+          call_id: functionItem.call_id,
+          output: "page not found",
+        },
+      ];
     }
 
     if (responseElement.type === "computer_call") {
@@ -265,7 +290,7 @@ export class Agent {
       const actionType = action.type;
       // Create a new object without the type property instead of using delete
       const { type, ...actionArgs } = action;
-      
+
       if (this.printSteps) {
         console.log(`${actionType}(${JSON.stringify(actionArgs)})`);
       }
@@ -315,7 +340,7 @@ export class Agent {
       if (this.computer) {
         screenshotBase64 = await this.computer.screenshot();
       }
-      
+
       if (this.showImages) {
         showImage(screenshotBase64);
       }
@@ -355,7 +380,7 @@ export class Agent {
 
       return [callOutput];
     }
-    
+
     return [];
   }
 
@@ -367,23 +392,30 @@ export class Agent {
       showImages?: boolean;
     } = {}
   ): Promise<any[]> {
-    this.printSteps = options.printSteps !== undefined ? options.printSteps : true;
+    this.printSteps =
+      options.printSteps !== undefined ? options.printSteps : true;
     this.debug = options.debug !== undefined ? options.debug : false;
-    this.showImages = options.showImages !== undefined ? options.showImages : false;
-    
+    this.showImages =
+      options.showImages !== undefined ? options.showImages : false;
+
     let modelResponses: any[] = [];
 
     // keep looping until we get a final response
-    while (!modelResponses.length || modelResponses[modelResponses.length - 1]?.role !== "assistant") {
-      this.debugPrint(conversationHistory.concat(modelResponses).map(sanitizeMessage));
+    while (
+      !modelResponses.length ||
+      modelResponses[modelResponses.length - 1]?.role !== "assistant"
+    ) {
+      this.debugPrint(
+        conversationHistory.concat(modelResponses).map(sanitizeMessage)
+      );
 
-      const response = await createResponse({
+      const response = (await createResponse({
         model: this.model,
         input: conversationHistory.concat(modelResponses),
         tools: this.tools,
         truncation: "auto",
-      }) as ResponseOutput;
-      
+      })) as ResponseOutput;
+
       this.debugPrint(response);
 
       if (!response.output && this.debug) {
@@ -393,7 +425,9 @@ export class Agent {
         modelResponses = modelResponses.concat(response.output || []);
         if (response.output) {
           for (const responseElement of response.output) {
-            const responseResults = await this.handleModelResponse(responseElement);
+            const responseResults = await this.handleModelResponse(
+              responseElement
+            );
             modelResponses = modelResponses.concat(responseResults);
           }
         }
