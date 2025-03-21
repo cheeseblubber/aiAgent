@@ -8,9 +8,8 @@ import { WebSocket } from "ws";
 import { SocketStream } from "@fastify/websocket";
 import type { Browser, Page, ConsoleMessage } from "playwright";
 import { chromium } from "playwright";
-import { openAiChat } from "./externalApi";
 import { Agent, Computer } from "./agent";
-import { tools, toolsList } from "./tools";
+import { toolsList } from "./tools";
 
 const server = fastify({
   logger: true,
@@ -63,7 +62,7 @@ async function initBrowser() {
     page = await context.newPage();
 
     // Navigate to bing.com
-    await page.goto("https://www.bing.com");
+    await page.goto("https://www.google.com");
 
     // Create Computer and Agent instances
     computer = new Computer([1280, 720], "browser", page);
