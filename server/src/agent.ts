@@ -7,12 +7,12 @@ import { tools } from "./tools";
 // TypeScript equivalent of the Python Computer class
 export class Computer {
   dimensions: [number, number];
-  environment: string;
+  environment: "mac" | "windows" | "ubuntu" | "browser";
   page?: Page;
 
   constructor(
     dimensions: [number, number] = [1024, 768],
-    environment: string = "browser",
+    environment: "mac" | "windows" | "ubuntu" | "browser" = "browser",
     page?: Page
   ) {
     this.dimensions = dimensions;
@@ -169,10 +169,57 @@ export function checkBlocklistedUrl(url: string): void {
 }
 
 // Types for the Agent class
-type ComputerAction = {
-  type: string;
-  [key: string]: any;
+
+// Import ComputerTool from OpenAI SDK
+import { ComputerTool } from "openai/resources/responses/responses";
+
+// Extending the ComputerTool type from OpenAI SDK
+type ComputerPreviewTool = ComputerTool;
+
+// Define specific action types
+type ClickAction = {
+  type: "click";
+  x: number;
+  y: number;
+  button?: "left" | "right" | "wheel" | "back" | "forward";
 };
+
+type ScrollAction = {
+  type: "scroll";
+  x: number;
+  y: number;
+  scroll_x: number;
+  scroll_y: number;
+};
+
+type KeypressAction = {
+  type: "keypress";
+  keys: string[];
+};
+
+type TypeAction = {
+  type: "type";
+  text: string;
+};
+
+type WaitAction = {
+  type: "wait";
+  ms?: number;
+};
+
+type OtherAction = {
+  type: string;
+  [key: string]: unknown;
+};
+
+// Union of all possible computer actions
+type ComputerAction = 
+  | ClickAction 
+  | ScrollAction 
+  | KeypressAction 
+  | TypeAction 
+  | WaitAction 
+  | OtherAction;
 
 type PendingSafetyCheck = {
   id: string;
@@ -207,7 +254,7 @@ interface ResponseItemBase {
   type?: string;
   role?: string;
   call_id?: string;
-  output?: any;
+  output?: string | number | boolean | Record<string, unknown>;
 }
 
 type ResponseItem =
@@ -219,7 +266,7 @@ type ResponseItem =
 export class Agent {
   model: string;
   computer: Computer;
-  tools: any[];
+  tools: Array<Tool | ComputerPreviewTool>;
   printSteps: boolean;
   debug: boolean;
   showImages: boolean;
@@ -228,7 +275,7 @@ export class Agent {
   constructor(
     computer: Computer,
     model: string = "computer-use-preview",
-    tools: any[] = [],
+    tools: Array<Tool> = [],
     acknowledgeSafetyCheckCallback: (message: string) => boolean = () => false
   ) {
     this.model = model;
@@ -247,7 +294,7 @@ export class Agent {
     });
   }
 
-  debugPrint(...args: any[]): void {
+  debugPrint(...args: unknown[]): void {
     if (this.debug) {
       pp(...args);
     }
@@ -310,27 +357,35 @@ export class Agent {
         // Execute the appropriate computer action based on type
         switch (actionType) {
           case "click": {
-            const { x, y, button = "left" } = actionArgs;
-            await this.computer.click(x, y, button);
+            if ('x' in actionArgs && 'y' in actionArgs) {
+              const { x, y, button = "left" } = actionArgs as ClickAction;
+              await this.computer.click(x, y, button);
+            }
             break;
           }
           case "scroll": {
-            const { x, y, scroll_x, scroll_y } = actionArgs;
-            await this.computer.scroll(x, y, scroll_x, scroll_y);
+            if ('x' in actionArgs && 'y' in actionArgs && 'scroll_x' in actionArgs && 'scroll_y' in actionArgs) {
+              const { x, y, scroll_x, scroll_y } = actionArgs as ScrollAction;
+              await this.computer.scroll(x, y, scroll_x, scroll_y);
+            }
             break;
           }
           case "keypress": {
-            const { keys } = actionArgs;
-            await this.computer.keypress(keys);
+            if ('keys' in actionArgs) {
+              const { keys } = actionArgs as KeypressAction;
+              await this.computer.keypress(keys);
+            }
             break;
           }
           case "type": {
-            const { text } = actionArgs;
-            await this.computer.type(text);
+            if ('text' in actionArgs) {
+              const { text } = actionArgs as TypeAction;
+              await this.computer.type(text);
+            }
             break;
           }
           case "wait": {
-            const { ms = 2000 } = actionArgs;
+            const { ms = 2000 } = actionArgs as WaitAction;
             await this.computer.wait(ms);
             break;
           }
