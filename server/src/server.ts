@@ -9,7 +9,8 @@ import { SocketStream } from "@fastify/websocket";
 import type { Browser, Page, ConsoleMessage } from "playwright";
 import { chromium } from "playwright";
 import { openAiChat } from "./externalApi";
-import { computerUseLoop } from "./computerUse";
+import { Agent, Computer } from "./agent";
+import { tools, toolsList } from "./tools";
 
 const server = fastify({
   logger: true,
@@ -48,6 +49,8 @@ interface BrowserUpdate {
 // Browser management
 let browser: Browser | null = null;
 let page: Page | null = null;
+let agent: Agent | null = null;
+let computer: Computer | null = null;
 
 async function initBrowser() {
   if (!browser) {
@@ -61,6 +64,18 @@ async function initBrowser() {
 
     // Navigate to bing.com
     await page.goto("https://www.bing.com");
+
+    // Create Computer and Agent instances
+    computer = new Computer([1280, 720], "browser", page);
+    agent = new Agent({
+      model: "computer-use-preview",
+      computer: computer,
+      tools: toolsList,
+      acknowledgeSafetyCheckCallback: (message) => {
+        console.log("Safety check acknowledged:", message);
+        return true; // Auto-acknowledge all safety checks
+      }
+    });
 
     // Set up page event listeners
     page.on("console", async (msg: ConsoleMessage) => {
@@ -79,7 +94,7 @@ async function initBrowser() {
       });
     });
   }
-  return { browser, page };
+  return { browser, page, agent, computer };
 }
 
 // Function to broadcast to all clients
@@ -99,37 +114,6 @@ server.register(async function (server: FastifyInstance) {
     async (connection: SocketStream, req) => {
       console.log("Client connected to browser WebSocket");
       connectedClients.add(connection.socket);
-
-      // Handle incoming messages
-      connection.socket.on("message", async (data) => {
-        try {
-          const message = JSON.parse(data.toString());
-          if (message.type === "text") {
-            // Ensure browser is initialized
-            const { page } = await initBrowser();
-            if (!page) {
-              throw new Error("Browser not initialized");
-            }
-
-            // Use computerUse to handle the message
-            await computerUseLoop(page, message.message, (update) => {
-              if (connection.socket.readyState === WebSocket.OPEN) {
-                connection.socket.send(JSON.stringify(update));
-              }
-            });
-          }
-        } catch (error) {
-          console.error("Error handling message:", error);
-          if (connection.socket.readyState === WebSocket.OPEN) {
-            connection.socket.send(
-              JSON.stringify({
-                type: "error",
-                data: "Error processing message",
-              })
-            );
-          }
-        }
-      });
 
       // Ensure browser is initialized
       const { page } = await initBrowser();
@@ -207,7 +191,27 @@ server.post<{ Body: ChatMessage }>("/chat", async (request, reply) => {
         error: "Failed to process message",
       });
     }
-    computerUseLoop(page, message);
+    // Use Agent to handle the message
+    if (!agent) {
+      return reply.code(500).send({
+        success: false,
+        error: "Agent not initialized",
+      });
+    }
+    
+    // Create a conversation history with the user message
+    const conversationHistory = [
+      {
+        role: "user",
+        content: [{ type: "input_text", text: message }]
+      }
+    ];
+    
+    // Run the agent
+    agent.runFullTurn(conversationHistory, {
+      printSteps: true,
+      showImages: true
+    });
 
     return reply.code(200).send({
       success: true,

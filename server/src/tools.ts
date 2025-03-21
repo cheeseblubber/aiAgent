@@ -2,11 +2,14 @@ import OpenAI from "openai";
 import { Tool } from "openai/resources/responses/responses";
 import { Page } from "playwright";
 
+
+type Success = "success" | "error";
+
 export const tools: Record<
   string,
   {
     spec: Tool;
-    handler: (args: any, opts: { page: Page }) => Promise<string>;
+    handler: (args: any, opts: { page: Page }) => Promise<Success>;
   }
 > = {
   goto: {
@@ -31,7 +34,7 @@ export const tools: Record<
         throw new Error("Page object is required for navigation");
       }
       await page.goto(url);
-      return "Navigation completed";
+      return "success";
     },
   },
 };

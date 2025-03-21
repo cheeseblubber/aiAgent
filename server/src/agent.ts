@@ -1,0 +1,391 @@
+import { Page } from "playwright";
+import OpenAI from "openai";
+import { tools, toolsList } from "./tools";
+
+// TypeScript equivalent of the Python Computer class
+export class Computer {
+  dimensions: [number, number];
+  environment: string;
+  page?: Page;
+
+  constructor(dimensions: [number, number] = [1024, 768], environment: string = "browser", page?: Page) {
+    this.dimensions = dimensions;
+    this.environment = environment;
+    this.page = page;
+  }
+
+  async click(x: number, y: number, button: "left" | "right" | "wheel" | "back" | "forward" = "left"): Promise<void> {
+    if (!this.page) {
+      throw new Error("Page not initialized");
+    }
+    
+    const mappedButton =
+      button === "wheel"
+        ? "middle"
+        : button === "back" || button === "forward"
+        ? "left"
+        : button;
+    
+    console.log(`Action: click at (${x}, ${y}) with button '${button}'`);
+    await this.page.mouse.click(x, y, { button: mappedButton });
+  }
+
+  async scroll(x: number, y: number, scroll_x: number, scroll_y: number): Promise<void> {
+    if (!this.page) {
+      throw new Error("Page not initialized");
+    }
+    
+    console.log(`Action: scroll at (${x}, ${y}) with offsets (scrollX=${scroll_x}, scrollY=${scroll_y})`);
+    await this.page.mouse.move(x, y);
+    await this.page.evaluate(`window.scrollBy(${scroll_x}, ${scroll_y})`);
+  }
+
+  async keypress(keys: string[]): Promise<void> {
+    if (!this.page) {
+      throw new Error("Page not initialized");
+    }
+    
+    for (const k of keys) {
+      console.log(`Action: keypress '${k}'`);
+      if (k.includes("ENTER")) {
+        await this.page.keyboard.press("Enter");
+      } else if (k.includes("SPACE")) {
+        await this.page.keyboard.press(" ");
+      } else {
+        await this.page.keyboard.press(k);
+      }
+    }
+  }
+
+  async type(text: string): Promise<void> {
+    if (!this.page) {
+      throw new Error("Page not initialized");
+    }
+    
+    console.log(`Action: type text '${text}'`);
+    await this.page.keyboard.type(text);
+  }
+
+  async wait(ms: number = 2000): Promise<void> {
+    if (!this.page) {
+      throw new Error("Page not initialized");
+    }
+    
+    console.log(`Action: wait for ${ms}ms`);
+    await this.page.waitForTimeout(ms);
+  }
+
+  async screenshot(): Promise<string> {
+    console.log("Action: screenshot");
+    if (!this.page) {
+      throw new Error("Page not initialized");
+    }
+    
+    // Take an actual screenshot using Playwright
+    const screenshotBuffer = await this.page.screenshot({ type: "png" });
+    return screenshotBuffer.toString("base64");
+  }
+
+  async get_current_url(): Promise<string> {
+    if (!this.page) {
+      throw new Error("Page not initialized");
+    }
+    
+    return this.page.url();
+  }
+}
+
+// Utility functions
+export function createResponse(options: {
+  model: string;
+  input: any[];
+  tools: any[];
+  truncation: string;
+}): Promise<any> {
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+
+  return openai.responses.create({
+    model: options.model,
+    input: options.input,
+    tools: options.tools,
+    truncation: options.truncation as "auto" | "disabled" | null,
+  });
+}
+
+export function showImage(base64Image: string): void {
+  console.log("Displaying image (not implemented in this environment)");
+}
+
+export function pp(...args: any[]): void {
+  console.log(JSON.stringify(args, null, 2));
+}
+
+export function sanitizeMessage(message: any): any {
+  // Deep clone and sanitize sensitive information
+  const sanitized = JSON.parse(JSON.stringify(message));
+  // Implement sanitization logic here
+  return sanitized;
+}
+
+export function checkBlocklistedUrl(url: string): void {
+  // Implement URL blocklist checking
+  const blocklist: string[] = [
+    // Add blocklisted domains/patterns here
+  ];
+  
+  for (const pattern of blocklist) {
+    if (url.includes(pattern)) {
+      throw new Error(`URL contains blocklisted pattern: ${pattern}`);
+    }
+  }
+}
+
+// Types for the Agent class
+type ComputerAction = {
+  type: string;
+  [key: string]: any;
+};
+
+type PendingSafetyCheck = {
+  id: string;
+  code: string;
+  message: string;
+};
+
+type ComputerCallItem = {
+  type: "computer_call";
+  call_id: string;
+  action: ComputerAction;
+  pending_safety_checks?: PendingSafetyCheck[];
+};
+
+type MessageItem = {
+  type: "message";
+  content: { text: string }[];
+};
+
+type FunctionCallItem = {
+  type: "function_call";
+  name: string;
+  arguments: string;
+  call_id: string;
+};
+
+type ResponseOutput = {
+  output: ResponseItem[];
+};
+
+interface ResponseItemBase {
+  type?: string;
+  role?: string;
+}
+
+type ResponseItem = ComputerCallItem | MessageItem | FunctionCallItem | ResponseItemBase;
+
+export class Agent {
+  model: string;
+  computer?: Computer;
+  tools: any[];
+  printSteps: boolean;
+  debug: boolean;
+  showImages: boolean;
+  acknowledgeSafetyCheckCallback: (message: string) => boolean;
+
+  /**
+   * A sample agent class that can be used to interact with a computer.
+   */
+  constructor(
+    options: {
+      model?: string;
+      computer?: Computer;
+      tools?: any[];
+      acknowledgeSafetyCheckCallback?: (message: string) => boolean;
+    } = {}
+  ) {
+    this.model = options.model || "computer-use-preview";
+    this.computer = options.computer;
+    this.tools = options.tools || [];
+    this.printSteps = true;
+    this.debug = false;
+    this.showImages = false;
+    this.acknowledgeSafetyCheckCallback = options.acknowledgeSafetyCheckCallback || (() => false);
+
+    if (this.computer) {
+      this.tools.push({
+        type: "computer-preview",
+        display_width: this.computer.dimensions[0],
+        display_height: this.computer.dimensions[1],
+        environment: this.computer.environment,
+      });
+    }
+  }
+
+  debugPrint(...args: any[]): void {
+    if (this.debug) {
+      pp(...args);
+    }
+  }
+
+  async handleModelResponse(responseElement: ResponseItem): Promise<any[]> {
+    // Handle each responseElement; may cause a computer action + screenshot
+    if (responseElement.type === "message") {
+      const messageItem = responseElement as MessageItem;
+      if (this.printSteps && messageItem.content?.[0]?.text) {
+        console.log(messageItem.content[0].text);
+      }
+    }
+
+    if (responseElement.type === "function_call") {
+      const functionItem = responseElement as FunctionCallItem;
+      const name = functionItem.name;
+      const args = JSON.parse(functionItem.arguments);
+      
+      if (this.printSteps) {
+        console.log(`${name}(${JSON.stringify(args)})`);
+      }
+
+      const result = await tools[name].handler(args, { page: this.computer!.page! });
+
+      if (this.computer && typeof (this.computer as any)[name] === "function") {
+        const method = (this.computer as any)[name].bind(this.computer);
+        await method(args);
+      }
+      
+      return [{
+        type: "function_call_output",
+        call_id: functionItem.call_id,
+        output: result,
+      }];
+    }
+
+    if (responseElement.type === "computer_call") {
+      const computerItem = responseElement as ComputerCallItem;
+      const action = computerItem.action;
+      const actionType = action.type;
+      // Create a new object without the type property instead of using delete
+      const { type, ...actionArgs } = action;
+      
+      if (this.printSteps) {
+        console.log(`${actionType}(${JSON.stringify(actionArgs)})`);
+      }
+
+      if (this.computer && typeof (this.computer as any)[actionType] === "function") {
+        const method = (this.computer as any)[actionType].bind(this.computer);
+        
+        // Call the method with the appropriate arguments based on action type
+        if (actionType === "click") {
+          const { x, y, button = "left" } = actionArgs;
+          await method(x, y, button);
+        } else if (actionType === "scroll") {
+          const { x, y, scroll_x, scroll_y } = actionArgs;
+          await method(x, y, scroll_x, scroll_y);
+        } else if (actionType === "keypress") {
+          const { keys } = actionArgs;
+          await method(keys);
+        } else if (actionType === "type") {
+          const { text } = actionArgs;
+          await method(text);
+        } else if (actionType === "wait") {
+          const { ms = 2000 } = actionArgs;
+          await method(ms);
+        } else {
+          // For other methods, pass the entire actionArgs object
+          await method(actionArgs);
+        }
+      }
+
+      // Take a screenshot
+      let screenshotBase64 = "";
+      if (this.computer) {
+        screenshotBase64 = await this.computer.screenshot();
+      }
+      
+      if (this.showImages) {
+        showImage(screenshotBase64);
+      }
+
+      // if user doesn't ack all safety checks exit with error
+      const pendingChecks = computerItem.pending_safety_checks || [];
+      for (const check of pendingChecks) {
+        const message = check.message;
+        if (!this.acknowledgeSafetyCheckCallback(message)) {
+          throw new Error(
+            `Safety check failed: ${message}. Cannot continue with unacknowledged safety checks.`
+          );
+        }
+      }
+
+      // Get the current URL for browser environments
+      let currentUrl = "";
+      if (this.computer?.environment === "browser") {
+        try {
+          currentUrl = await this.computer.get_current_url();
+          checkBlocklistedUrl(currentUrl);
+        } catch (error) {
+          console.error("Error getting current URL:", error);
+        }
+      }
+
+      const callOutput = {
+        type: "computer_call_output",
+        call_id: computerItem.call_id,
+        acknowledged_safety_checks: pendingChecks,
+        output: {
+          type: "input_image",
+          image_url: `data:image/png;base64,${screenshotBase64}`,
+          current_url: currentUrl,
+        },
+      };
+
+      return [callOutput];
+    }
+    
+    return [];
+  }
+
+  async runFullTurn(
+    conversationHistory: any[],
+    options: {
+      printSteps?: boolean;
+      debug?: boolean;
+      showImages?: boolean;
+    } = {}
+  ): Promise<any[]> {
+    this.printSteps = options.printSteps !== undefined ? options.printSteps : true;
+    this.debug = options.debug !== undefined ? options.debug : false;
+    this.showImages = options.showImages !== undefined ? options.showImages : false;
+    
+    let modelResponses: any[] = [];
+
+    // keep looping until we get a final response
+    while (!modelResponses.length || modelResponses[modelResponses.length - 1]?.role !== "assistant") {
+      this.debugPrint(conversationHistory.concat(modelResponses).map(sanitizeMessage));
+
+      const response = await createResponse({
+        model: this.model,
+        input: conversationHistory.concat(modelResponses),
+        tools: this.tools,
+        truncation: "auto",
+      }) as ResponseOutput;
+      
+      this.debugPrint(response);
+
+      if (!response.output && this.debug) {
+        console.log(response);
+        throw new Error("No output from model");
+      } else {
+        modelResponses = modelResponses.concat(response.output || []);
+        if (response.output) {
+          for (const responseElement of response.output) {
+            const responseResults = await this.handleModelResponse(responseElement);
+            modelResponses = modelResponses.concat(responseResults);
+          }
+        }
+      }
+    }
+
+    return modelResponses;
+  }
+}
