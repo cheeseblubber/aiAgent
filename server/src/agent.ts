@@ -1,6 +1,8 @@
-import { Page, Browser } from "playwright";
+import { Page } from "playwright";
 import OpenAI from "openai";
-import { tools, toolsList } from "./tools";
+import { Tool, EasyInputMessage, Response } from "openai/resources/responses/responses";
+import { APIPromise } from "openai/core";
+import { tools } from "./tools";
 
 // TypeScript equivalent of the Python Computer class
 export class Computer {
@@ -120,21 +122,21 @@ export class Computer {
 }
 
 // Utility functions
-export function createResponse(options: {
-  model: string;
-  input: any[];
-  tools: any[];
-  truncation: string;
-}): Promise<any> {
+export function createResponse(
+  model: string,
+  input: EasyInputMessage[],
+  tools: Array<Tool>,
+  truncation: 'auto' | 'disabled' | null
+): APIPromise<Response> {
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
   });
 
   return openai.responses.create({
-    model: options.model,
-    input: options.input,
-    tools: options.tools,
-    truncation: options.truncation as "auto" | "disabled" | null,
+    model,
+    input,
+    tools,
+    truncation,
   });
 }
 
@@ -421,12 +423,12 @@ export class Agent {
       );
 
       // Get response from the model
-      const response = (await createResponse({
-        model: this.model,
-        input: conversationHistory.concat(modelResponses),
-        tools: this.tools,
-        truncation: "auto",
-      })) as ResponseOutput;
+      const response = (await createResponse(
+        this.model,
+        conversationHistory.concat(modelResponses),
+        this.tools,
+        "auto"
+      )) as ResponseOutput;
 
       this.debugPrint(response);
 
