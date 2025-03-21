@@ -204,6 +204,8 @@ type ResponseOutput = {
 interface ResponseItemBase {
   type?: string;
   role?: string;
+  call_id?: string;
+  output?: any;
 }
 
 type ResponseItem =
@@ -249,7 +251,7 @@ export class Agent {
     }
   }
 
-  async handleModelResponse(responseElement: ResponseItem): Promise<any[]> {
+  async handleModelResponse(responseElement: ResponseItem, messageCallback?: (message: string) => void): Promise<ResponseItem[]> {
     // Handle each responseElement; may cause a computer action + screenshot
     if (responseElement.type === "message") {
       const messageItem = responseElement as MessageItem;
@@ -265,6 +267,7 @@ export class Agent {
 
       if (this.printSteps) {
         console.log(`${name}(${JSON.stringify(args)})`);
+        messageCallback?.(`${name}(${JSON.stringify(args)})`);
       }
 
       if (this.computer.page) {
@@ -298,6 +301,7 @@ export class Agent {
 
       if (this.printSteps) {
         console.log(`${actionType}(${JSON.stringify(actionArgs)})`);
+        messageCallback?.(`${actionType}(${JSON.stringify(actionArgs)})`);
       }
 
       if (this.computer) {
@@ -395,9 +399,10 @@ export class Agent {
       printSteps?: boolean;
       debug?: boolean;
       showImages?: boolean;
+      messageCallback?: (message: string) => void;
     } = {}
   ): Promise<any[]> {
-    const { printSteps = true, debug = false, showImages = false } = options;
+    const { printSteps = true, debug = false, showImages = false, messageCallback } = options;
 
     this.printSteps = printSteps;
     this.debug = debug;
@@ -439,7 +444,7 @@ export class Agent {
 
       // Process each response element
       for (const responseElement of response.output) {
-        const responseResults = await this.handleModelResponse(responseElement);
+        const responseResults = await this.handleModelResponse(responseElement, messageCallback);
         modelResponses = modelResponses.concat(responseResults);
       }
     }

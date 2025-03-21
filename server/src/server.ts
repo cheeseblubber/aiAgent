@@ -45,6 +45,15 @@ interface BrowserUpdate {
   data: any;
 }
 
+// Interface for chat messages sent via WebSocket
+interface ChatUpdate {
+  type: "chat";
+  data: {
+    content: string;
+    sender: "ai";
+  };
+}
+
 // Browser management
 let browser: Browser | null = null;
 let page: Page | null = null;
@@ -62,7 +71,7 @@ async function initBrowser() {
     page = await context.newPage();
 
     // Navigate to bing.com
-    await page.goto("https://www.google.com");
+    await page.goto("https://www.bing.com");
 
     // Create Computer and Agent instances
     computer = new Computer([1280, 720], "browser", page);
@@ -99,6 +108,24 @@ async function initBrowser() {
 // Function to broadcast to all clients
 function broadcastToAll(update: BrowserUpdate) {
   const message = JSON.stringify(update);
+  for (const client of connectedClients) {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  }
+}
+
+// Function to broadcast chat messages to all clients
+function broadcastChatMessage(content: string) {
+  const chatUpdate: ChatUpdate = {
+    type: "chat",
+    data: {
+      content,
+      sender: "ai",
+    },
+  };
+
+  const message = JSON.stringify(chatUpdate);
   for (const client of connectedClients) {
     if (client.readyState === WebSocket.OPEN) {
       client.send(message);
@@ -184,7 +211,7 @@ server.post<{ Body: ChatMessage }>("/chat", async (request, reply) => {
     const { message } = request.body;
 
     // const aiResponse = await openAiChat(message);
-    if(!page) {
+    if (!page) {
       return reply.code(500).send({
         success: false,
         error: "Failed to process message",
@@ -197,19 +224,22 @@ server.post<{ Body: ChatMessage }>("/chat", async (request, reply) => {
         error: "Agent not initialized",
       });
     }
-    
+
     // Create a conversation history with the user message
     const conversationHistory = [
       {
         role: "user",
-        content: [{ type: "input_text", text: message }]
-      }
+        content: [{ type: "input_text", text: message }],
+      },
     ];
-    
+
     // Run the agent
     agent.runFullTurn(conversationHistory, {
       printSteps: true,
-      showImages: true
+      showImages: true,
+      messageCallback: (message) => {
+        broadcastChatMessage(message);
+      },
     });
 
     return reply.code(200).send({

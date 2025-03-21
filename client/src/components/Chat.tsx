@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { sendChatMessage } from '../api'
+import { useState, useEffect, useRef } from 'react'
+import { sendChatMessage, createBrowserWebSocket } from '../api'
 
 interface Message {
   content: string
@@ -9,6 +9,36 @@ interface Message {
 function ChatComponent() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
+  const wsRef = useRef<WebSocket | null>(null)
+
+  // Set up WebSocket connection
+  useEffect(() => {
+    // Create WebSocket connection
+    const ws = createBrowserWebSocket()
+    wsRef.current = ws
+
+    // Listen for messages from the server
+    ws.addEventListener('message', (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        
+        // Handle chat messages
+        if (data.type === 'chat') {
+          const { content, sender } = data.data
+          setMessages(prev => [...prev, { content, sender }])
+        }
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error)
+      }
+    })
+
+    // Clean up WebSocket connection on unmount
+    return () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close()
+      }
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
