@@ -306,6 +306,7 @@ export class Agent {
       const messageItem = responseElement as MessageItem;
       if (this.printSteps && messageItem.content?.[0]?.text) {
         console.log(messageItem.content[0].text);
+        messageCallback?.(messageItem.content[0].text);
       }
     }
 
