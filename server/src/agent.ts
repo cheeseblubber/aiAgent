@@ -37,7 +37,7 @@ export class Computer {
     console.log(`Action: click at (${x}, ${y}) with button '${button}'`);
     //TODO: temporary hack to deal multiple tabs
     //Bing opens new tab every search result
-    
+
     await this.page.evaluate(() => {
       document.querySelectorAll('a[target="_blank"]').forEach((element) => {
         const anchor = element as HTMLAnchorElement;
@@ -221,20 +221,19 @@ export class Agent {
   showImages: boolean;
   acknowledgeSafetyCheckCallback: (message: string) => boolean;
 
-  constructor(options: {
-    model?: string;
-    computer: Computer;
-    tools?: any[];
-    acknowledgeSafetyCheckCallback?: (message: string) => boolean;
-  }) {
-    this.model = options.model || "computer-use-preview";
-    this.computer = options.computer; 
-    this.tools = options.tools || [];
+  constructor(
+    computer: Computer,
+    model: string = "computer-use-preview",
+    tools: any[] = [],
+    acknowledgeSafetyCheckCallback: (message: string) => boolean = () => false
+  ) {
+    this.model = model;
+    this.computer = computer;
+    this.tools = tools;
     this.printSteps = true;
     this.debug = false;
     this.showImages = false;
-    this.acknowledgeSafetyCheckCallback =
-      options.acknowledgeSafetyCheckCallback || (() => false);
+    this.acknowledgeSafetyCheckCallback = acknowledgeSafetyCheckCallback;
 
     this.tools.push({
       type: "computer-preview",
@@ -398,23 +397,25 @@ export class Agent {
       showImages?: boolean;
     } = {}
   ): Promise<any[]> {
-    this.printSteps =
-      options.printSteps !== undefined ? options.printSteps : true;
-    this.debug = options.debug !== undefined ? options.debug : false;
-    this.showImages =
-      options.showImages !== undefined ? options.showImages : false;
+    const { printSteps = true, debug = false, showImages = false } = options;
+
+    this.printSteps = printSteps;
+    this.debug = debug;
+    this.showImages = showImages;
 
     let modelResponses: any[] = [];
 
-    // keep looping until we get a final response
+    // Keep looping until we get a final response from the assistant
     while (
       !modelResponses.length ||
       modelResponses[modelResponses.length - 1]?.role !== "assistant"
     ) {
+      // Debug print the sanitized conversation history and model responses
       this.debugPrint(
         conversationHistory.concat(modelResponses).map(sanitizeMessage)
       );
 
+      // Get response from the model
       const response = (await createResponse({
         model: this.model,
         input: conversationHistory.concat(modelResponses),
@@ -424,19 +425,22 @@ export class Agent {
 
       this.debugPrint(response);
 
-      if (!response.output && this.debug) {
-        console.log(response);
-        throw new Error("No output from model");
-      } else {
-        modelResponses = modelResponses.concat(response.output || []);
-        if (response.output) {
-          for (const responseElement of response.output) {
-            const responseResults = await this.handleModelResponse(
-              responseElement
-            );
-            modelResponses = modelResponses.concat(responseResults);
-          }
+      // Handle response output
+      if (!response.output) {
+        if (this.debug) {
+          console.log(response);
+          throw new Error("No output from model");
         }
+        continue;
+      }
+
+      // Add response output to model responses
+      modelResponses = modelResponses.concat(response.output);
+
+      // Process each response element
+      for (const responseElement of response.output) {
+        const responseResults = await this.handleModelResponse(responseElement);
+        modelResponses = modelResponses.concat(responseResults);
       }
     }
 

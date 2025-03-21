@@ -67,15 +67,15 @@ async function initBrowser() {
 
     // Create Computer and Agent instances
     computer = new Computer([1280, 720], "browser", page);
-    agent = new Agent({
-      model: "computer-use-preview",
-      computer: computer,
-      tools: toolsList,
-      acknowledgeSafetyCheckCallback: (message) => {
+    agent = new Agent(
+      computer,
+      "computer-use-preview",
+      toolsList,
+      (message: string) => {
         console.log("Safety check acknowledged:", message);
         return true; // Auto-acknowledge all safety checks
       }
-    });
+    );
 
     // Set up page event listeners
     page.on("console", async (msg: ConsoleMessage) => {
