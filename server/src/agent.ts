@@ -1,4 +1,4 @@
-import { Page } from "playwright";
+import { Page, Browser } from "playwright";
 import OpenAI from "openai";
 import { tools, toolsList } from "./tools";
 
@@ -35,6 +35,15 @@ export class Computer {
         : button;
 
     console.log(`Action: click at (${x}, ${y}) with button '${button}'`);
+    //TODO: temporary hack to deal multiple tabs
+    //Bing opens new tab every search result
+    
+    await this.page.evaluate(() => {
+      document.querySelectorAll('a[target="_blank"]').forEach((element) => {
+        const anchor = element as HTMLAnchorElement;
+        anchor.target = "_self";
+      });
+    });
     await this.page.mouse.click(x, y, { button: mappedButton });
   }
 
@@ -212,9 +221,6 @@ export class Agent {
   showImages: boolean;
   acknowledgeSafetyCheckCallback: (message: string) => boolean;
 
-  /**
-   * A sample agent class that can be used to interact with a computer.
-   */
   constructor(options: {
     model?: string;
     computer: Computer;
@@ -222,7 +228,7 @@ export class Agent {
     acknowledgeSafetyCheckCallback?: (message: string) => boolean;
   }) {
     this.model = options.model || "computer-use-preview";
-    this.computer = options.computer; // Computer is now required
+    this.computer = options.computer; 
     this.tools = options.tools || [];
     this.printSteps = true;
     this.debug = false;
