@@ -271,28 +271,43 @@ export class Agent {
         console.log(`${actionType}(${JSON.stringify(actionArgs)})`);
       }
 
-      if (this.computer && typeof (this.computer as any)[actionType] === "function") {
-        const method = (this.computer as any)[actionType].bind(this.computer);
-        
-        // Call the method with the appropriate arguments based on action type
-        if (actionType === "click") {
-          const { x, y, button = "left" } = actionArgs;
-          await method(x, y, button);
-        } else if (actionType === "scroll") {
-          const { x, y, scroll_x, scroll_y } = actionArgs;
-          await method(x, y, scroll_x, scroll_y);
-        } else if (actionType === "keypress") {
-          const { keys } = actionArgs;
-          await method(keys);
-        } else if (actionType === "type") {
-          const { text } = actionArgs;
-          await method(text);
-        } else if (actionType === "wait") {
-          const { ms = 2000 } = actionArgs;
-          await method(ms);
-        } else {
-          // For other methods, pass the entire actionArgs object
-          await method(actionArgs);
+      if (this.computer) {
+        // Execute the appropriate computer action based on type
+        switch (actionType) {
+          case "click": {
+            const { x, y, button = "left" } = actionArgs;
+            await this.computer.click(x, y, button);
+            break;
+          }
+          case "scroll": {
+            const { x, y, scroll_x, scroll_y } = actionArgs;
+            await this.computer.scroll(x, y, scroll_x, scroll_y);
+            break;
+          }
+          case "keypress": {
+            const { keys } = actionArgs;
+            await this.computer.keypress(keys);
+            break;
+          }
+          case "type": {
+            const { text } = actionArgs;
+            await this.computer.type(text);
+            break;
+          }
+          case "wait": {
+            const { ms = 2000 } = actionArgs;
+            await this.computer.wait(ms);
+            break;
+          }
+          default: {
+            // For other methods, check if they exist on the computer object
+            if (typeof (this.computer as any)[actionType] === "function") {
+              await (this.computer as any)[actionType](actionArgs);
+            } else {
+              console.warn(`Unknown computer action type: ${actionType}`);
+            }
+            break;
+          }
         }
       }
 
