@@ -4,12 +4,14 @@ import { sendChatMessage, createBrowserWebSocket } from '../api'
 interface Message {
   content: string
   sender: 'user' | 'ai'
+  id?: string // Add an optional ID for deduplication
 }
 
 function ChatComponent() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const wsRef = useRef<WebSocket | null>(null)
+  const processedMessages = useRef<Set<string>>(new Set()) // Track processed message contents
 
   // Set up WebSocket connection
   useEffect(() => {
@@ -21,11 +23,27 @@ function ChatComponent() {
     ws.addEventListener('message', (event) => {
       try {
         const data = JSON.parse(event.data)
-        
+
         // Handle chat messages
         if (data.type === 'chat') {
           const { content, sender } = data.data
-          setMessages(prev => [...prev, { content, sender }])
+
+          // Create a simple hash of the message to use for deduplication
+          const messageHash = `${content}-${Date.now()}`
+
+          // Only add the message if we haven't seen it in the last second
+          // This prevents duplicates that arrive close together
+          if (!processedMessages.current.has(content)) {
+            processedMessages.current.add(content)
+
+            // Add the message to the UI
+            setMessages(prev => [...prev, { content, sender, id: messageHash }])
+
+            // Remove from processed set after a delay to allow for future identical messages
+            setTimeout(() => {
+              processedMessages.current.delete(content)
+            }, 1000)
+          }
         }
       } catch (error) {
         console.error('Error parsing WebSocket message:', error)
@@ -44,19 +62,25 @@ function ChatComponent() {
     e.preventDefault()
     if (!input.trim()) return
 
-    const userMessage = { content: input, sender: 'user' as const }
+    // Create a unique ID for the user message
+    const userMessageId = `user-${Date.now()}`
+    const userMessage = { content: input, sender: 'user' as const, id: userMessageId }
     setMessages([...messages, userMessage])
     setInput('')
 
     try {
-      const response = await sendChatMessage(input)
-      if (response.success && response.message) {
-        const aiMessage = { content: response.message, sender: 'ai' as const }
-        setMessages(prev => [...prev, aiMessage])
-      }
+      // Just send the message, we don't need to handle the response
+      // as messages will come through the WebSocket with proper deduplication
+      await sendChatMessage(input)
+      // This prevents duplicate messages
     } catch (error) {
       console.error('Error sending message:', error)
-      const errorMessage = { content: 'Sorry, something went wrong. Please try again.', sender: 'ai' as const }
+      const errorMessageId = `error-${Date.now()}`
+      const errorMessage = {
+        content: 'Sorry, something went wrong. Please try again.',
+        sender: 'ai' as const,
+        id: errorMessageId
+      }
       setMessages(prev => [...prev, errorMessage])
     }
   }
@@ -66,12 +90,11 @@ function ChatComponent() {
       <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-2.5">
         {messages.map((msg, idx) => (
           <div
-            key={idx}
-            className={`p-3 rounded-xl max-w-[80%] break-words ${
-              msg.sender === 'user'
+            key={msg.id || idx} /* Use the message id if available, otherwise fall back to index */
+            className={`p-3 rounded-xl max-w-[80%] break-words ${msg.sender === 'user'
                 ? 'self-end bg-blue-600 text-white'
                 : 'self-start bg-gray-200 text-gray-900'
-            }`}
+              }`}
           >
             {msg.content}
           </div>
@@ -85,7 +108,7 @@ function ChatComponent() {
           placeholder="Type your message..."
           className="flex-1 p-2.5 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
-        <button 
+        <button
           type="submit"
           className="px-5 py-2.5 bg-blue-500 text-white rounded-lg text-base cursor-pointer transition-colors hover:bg-blue-700"
         >
