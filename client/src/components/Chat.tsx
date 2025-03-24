@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { sendChatMessage, createBrowserWebSocket, generateConversationId } from '../api'
+import { sendChatMessage, createBrowserWebSocket } from '../api'
+import { useConversation } from '../context/ConversationContext'
 
 interface Message {
   content: string
@@ -12,12 +13,14 @@ function ChatComponent() {
   const [input, setInput] = useState('')
   const wsRef = useRef<WebSocket | null>(null)
   const processedMessages = useRef<Set<string>>(new Set()) // Track processed message contents
-  const conversationIdRef = useRef<string>(generateConversationId())
+  const { conversationId, isLoading } = useConversation()
 
   // Set up WebSocket connection
   useEffect(() => {
+    if (isLoading || !conversationId) return;
+    
     // Create WebSocket connection with conversation ID
-    const ws = createBrowserWebSocket(conversationIdRef.current)
+    const ws = createBrowserWebSocket(conversationId)
     wsRef.current = ws
 
     // Listen for messages from the server
@@ -53,11 +56,11 @@ function ChatComponent() {
 
     // Clean up WebSocket connection on unmount
     return () => {
-      if (ws.readyState === WebSocket.OPEN) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
         ws.close()
       }
     }
-  }, [])
+  }, [conversationId, isLoading])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -71,7 +74,7 @@ function ChatComponent() {
 
     try {
       // Send the message with conversation ID
-      await sendChatMessage(input, conversationIdRef.current)
+      await sendChatMessage(input, conversationId)
       // This prevents duplicate messages
     } catch (error) {
       console.error('Error sending message:', error)

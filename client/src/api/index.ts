@@ -4,6 +4,7 @@ const WS_BASE = API_BASE.replace(/^http/, 'ws')
 export const API_ENDPOINTS = {
   chat: `${API_BASE}/chat`,
   browserWs: `${WS_BASE}/browser`,
+  conversation: `${API_BASE}/conversation`,
 } as const
 
 // Generate a large random number for conversation ID
@@ -17,6 +18,28 @@ interface ChatResponse {
   message?: string;
   error?: string;
 }
+
+export const fetchConversationId = async (): Promise<string> => {
+  try {
+    const response = await fetch(API_ENDPOINTS.conversation, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch conversation ID');
+    }
+
+    const data = await response.json();
+    return data.conversationId;
+  } catch (error) {
+    console.error('Error fetching conversation ID:', error);
+    // Fallback to generating a local ID if the API call fails
+    return generateConversationId();
+  }
+};
 
 export const sendChatMessage = async (message: string, conversationId: string): Promise<ChatResponse> => {
   const response = await fetch(API_ENDPOINTS.chat, {
