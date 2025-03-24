@@ -44,6 +44,7 @@ interface ConversationSession {
   computer: Computer;
   connectedClients: Set<WebSocket>;
   lastActivity: number;
+  conversationHistory: any[];
 }
 
 // Map to store conversation sessions by conversationId
@@ -111,6 +112,7 @@ async function initBrowserForConversation(conversationId: string): Promise<Conve
     computer,
     connectedClients: new Set<WebSocket>(),
     lastActivity: Date.now(),
+    conversationHistory: [],
   };
 
   // Set up page event listeners
@@ -336,17 +338,15 @@ server.post<{ Body: ChatMessage }>("/chat", async (request, reply) => {
     const session = await initBrowserForConversation(conversationId);
     session.lastActivity = Date.now();
     
-    // Create a conversation history with the user message
-    const conversationHistory = [
-      {
-        role: "user",
-        content: [{ type: "input_text", text: message }],
-      },
-    ];
+    // Add the new user message to the conversation history
+    session.conversationHistory.push({
+      role: "user",
+      content: [{ type: "input_text", text: message }],
+    });
 
-    console.log(`Running agent for conversation: ${conversationId}`);
-    // Run the agent
-    session.agent.runFullTurn(conversationHistory, {
+    console.log(`Running agent for conversation: ${conversationId} with ${session.conversationHistory.length} messages in history`);
+    // Run the agent with the full conversation history
+    session.agent.runFullTurn(session.conversationHistory, {
       printSteps: true,
       showImages: true,
       messageCallback: (message) => {
