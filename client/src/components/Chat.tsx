@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { sendChatMessage, createBrowserWebSocket } from '../api'
+import { sendChatMessage } from '../api'
 import { useConversation } from '../context/ConversationContext'
 
 interface Message {
@@ -11,20 +11,17 @@ interface Message {
 function ChatComponent() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
-  const wsRef = useRef<WebSocket | null>(null)
   const processedMessages = useRef<Set<string>>(new Set()) // Track processed message contents
-  const { conversationId, isLoading } = useConversation()
+  const { conversationId, isLoading, webSocket } = useConversation()
 
-  // Set up WebSocket connection
+  // Set up WebSocket message handler
   useEffect(() => {
-    if (isLoading || !conversationId) return;
+    if (isLoading || !conversationId || !webSocket) return;
     
-    // Create WebSocket connection with conversation ID
-    const ws = createBrowserWebSocket(conversationId)
-    wsRef.current = ws
-
+    console.log(`Chat component using shared WebSocket for conversation: ${conversationId}`);
+    
     // Listen for messages from the server
-    ws.addEventListener('message', (event) => {
+    const handleMessage = (event: MessageEvent) => {
       try {
         const data = JSON.parse(event.data)
 
@@ -52,15 +49,15 @@ function ChatComponent() {
       } catch (error) {
         console.error('Error parsing WebSocket message:', error)
       }
-    })
+    };
+    
+    webSocket.addEventListener('message', handleMessage);
 
-    // Clean up WebSocket connection on unmount
+    // Clean up event listener on unmount
     return () => {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.close()
-      }
-    }
-  }, [conversationId, isLoading])
+      webSocket.removeEventListener('message', handleMessage);
+    };
+  }, [conversationId, isLoading, webSocket])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { createBrowserWebSocket } from '../api'
 import { useConversation } from '../context/ConversationContext'
 
 interface BrowserState {
@@ -13,8 +12,7 @@ export default function BrowserConnections() {
   const [browserState, setBrowserState] = useState<BrowserState>({
     isLoading: true
   })
-  const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
-  const { conversationId, isLoading: isConversationLoading } = useConversation()
+  const { conversationId, isLoading: isConversationLoading, webSocket, wsStatus } = useConversation()
 
   const updateCanvas = useCallback((imageData: string) => {
     const canvas = canvasRef.current
@@ -32,40 +30,40 @@ export default function BrowserConnections() {
     img.src = `data:image/jpeg;base64,${imageData}`
   }, [])
 
+  // Use the shared WebSocket from the context
   useEffect(() => {
-    if (isConversationLoading || !conversationId) return;
+    if (isConversationLoading || !conversationId || !webSocket) return;
     
-    const ws = createBrowserWebSocket(conversationId)
-
-    ws.onopen = () => {
-      setWsStatus('connected')
-      setBrowserState(prev => ({ ...prev, isLoading: true }))
-    }
-
-    ws.onmessage = (event) => {
-      const update = JSON.parse(event.data)
+    // Set up message handler for this component
+    const handleMessage = (event: MessageEvent) => {
+      const update = JSON.parse(event.data);
       
       if (update.type === 'screenshot') {
-        updateCanvas(update.data.image)
-        setBrowserState(prev => ({ ...prev, isLoading: false }))
+        updateCanvas(update.data.image);
+        setBrowserState(prev => ({ ...prev, isLoading: false }));
       } else if (update.type === 'page') {
         setBrowserState(prev => ({
           ...prev,
           url: update.data.url,
           title: update.data.title,
           isLoading: true
-        }))
+        }));
       }
-    }
+    };
 
-    ws.onclose = () => {
-      setWsStatus('disconnected')
+    // Add message event listener
+    webSocket.addEventListener('message', handleMessage);
+    
+    // If the connection is already open, set the initial state
+    if (webSocket.readyState === WebSocket.OPEN) {
+      setBrowserState(prev => ({ ...prev, isLoading: true }));
     }
-
+    
+    // Clean up function
     return () => {
-      ws.close()
-    }
-  }, [updateCanvas, conversationId, isConversationLoading])
+      webSocket.removeEventListener('message', handleMessage);
+    };
+  }, [conversationId, webSocket, isConversationLoading])
 
 
 
