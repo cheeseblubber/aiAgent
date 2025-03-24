@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { sendChatMessage, createBrowserWebSocket } from '../api'
+import { sendChatMessage, createBrowserWebSocket, generateConversationId } from '../api'
 
 interface Message {
   content: string
@@ -12,11 +12,12 @@ function ChatComponent() {
   const [input, setInput] = useState('')
   const wsRef = useRef<WebSocket | null>(null)
   const processedMessages = useRef<Set<string>>(new Set()) // Track processed message contents
+  const conversationIdRef = useRef<string>(generateConversationId())
 
   // Set up WebSocket connection
   useEffect(() => {
-    // Create WebSocket connection
-    const ws = createBrowserWebSocket()
+    // Create WebSocket connection with conversation ID
+    const ws = createBrowserWebSocket(conversationIdRef.current)
     wsRef.current = ws
 
     // Listen for messages from the server
@@ -69,9 +70,8 @@ function ChatComponent() {
     setInput('')
 
     try {
-      // Just send the message, we don't need to handle the response
-      // as messages will come through the WebSocket with proper deduplication
-      await sendChatMessage(input)
+      // Send the message with conversation ID
+      await sendChatMessage(input, conversationIdRef.current)
       // This prevents duplicate messages
     } catch (error) {
       console.error('Error sending message:', error)

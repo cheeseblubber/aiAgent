@@ -1,10 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { createBrowserWebSocket } from '../api'
-
-interface BrowserUpdate {
-  type: 'screenshot' | 'page' | 'error'
-  data: any
-}
+import { createBrowserWebSocket, generateConversationId } from '../api'
 
 interface BrowserState {
   url?: string
@@ -18,6 +13,7 @@ export default function BrowserConnections() {
     isLoading: true
   })
   const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
+  const conversationIdRef = useRef<string>(generateConversationId())
 
   const updateCanvas = useCallback((imageData: string) => {
     const canvas = canvasRef.current
@@ -36,7 +32,7 @@ export default function BrowserConnections() {
   }, [])
 
   useEffect(() => {
-    const ws = createBrowserWebSocket()
+    const ws = createBrowserWebSocket(conversationIdRef.current)
 
     ws.onopen = () => {
       setWsStatus('connected')
