@@ -1,4 +1,4 @@
-import { Page } from "playwright";
+import { Page } from "playwright-core";
 import OpenAI from "openai";
 import { tools, toolsList } from "./tools";
 

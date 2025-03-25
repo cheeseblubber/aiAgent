@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
-import { fetchConversationId, createBrowserWebSocket } from '../api';
+import { fetchConversationId, createWebSocket, API_ENDPOINTS } from '../api';
 import LoadingIndicator from '../components/LoadingIndicator';
 
 interface ConversationContextType {
@@ -50,7 +50,7 @@ export function ConversationProvider({ children }: ConversationProviderProps) {
     }
 
     console.log(`Creating shared WebSocket connection for conversation: ${conversationId}`);
-    const ws = createBrowserWebSocket(conversationId);
+    const ws = createWebSocket(API_ENDPOINTS.browserWs, conversationId);
     wsRef.current = ws;
     setWsStatus('connecting');
 
@@ -64,7 +64,7 @@ export function ConversationProvider({ children }: ConversationProviderProps) {
       setWsStatus('disconnected');
     };
 
-    ws.onerror = (error) => {
+    ws.onerror = (error: Event) => {
       console.error(`Shared WebSocket error for conversation: ${conversationId}`, error);
       setWsStatus('disconnected');
     };

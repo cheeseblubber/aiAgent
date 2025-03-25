@@ -6,8 +6,9 @@ import cors from "@fastify/cors";
 import ws from "@fastify/websocket";
 import { WebSocket } from "ws";
 import { SocketStream } from "@fastify/websocket";
-import type { Browser, Page, ConsoleMessage } from "playwright";
-import { chromium } from "playwright";
+import type { Browser, Page, ConsoleMessage } from "playwright-core";
+import { chromium } from "playwright-core";
+import Browserbase from "@browserbasehq/sdk";
 import { Agent, Computer } from "./agent";
 import { toolsList } from "./tools";
 
@@ -45,6 +46,7 @@ interface ConversationSession {
   connectedClients: Set<WebSocket>;
   lastActivity: number;
   conversationHistory: any[];
+  browserbaseSessionId?: string; // BrowserBase session ID
 }
 
 // Map to store conversation sessions by conversationId
@@ -80,14 +82,31 @@ async function initBrowserForConversation(conversationId: string): Promise<Conve
   
   console.log(`Creating new browser session for conversation: ${conversationId}`);
 
-  // Create new browser session
-  const browser = await chromium.launch({
-    headless: false,
+  // Initialize BrowserBase
+  const apiKey = process.env.BROWSERBASE_API_KEY;
+  const projectId = process.env.BROWSERBASE_PROJECT_ID;
+  
+  if (!apiKey || !projectId) {
+    throw new Error('BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID must be set in .env file');
+  }
+  
+  const bb = new Browserbase({
+    apiKey
   });
-  const context = await browser.newContext({
-    viewport: { width: 1280, height: 720 },
+
+  // Create a new session
+  const bbSession = await bb.sessions.create({
+    projectId
   });
-  const page = await context.newPage();
+
+  console.log(`BrowserBase session created: ${bbSession.id}`);
+
+  // Connect to the session
+  const browser = await chromium.connectOverCDP(bbSession.connectUrl);
+
+  // Getting the default context to ensure the sessions are recorded
+  const context = browser.contexts()[0];
+  const page = context.pages()[0];
 
   // Navigate to bing.com
   await page.goto("https://www.bing.com");
@@ -113,6 +132,7 @@ async function initBrowserForConversation(conversationId: string): Promise<Conve
     connectedClients: new Set<WebSocket>(),
     lastActivity: Date.now(),
     conversationHistory: [],
+    browserbaseSessionId: bbSession.id, // Store the BrowserBase session ID
   };
 
   // Set up page event listeners
@@ -133,30 +153,23 @@ async function initBrowserForConversation(conversationId: string): Promise<Conve
 
   // Store the session
   conversationSessions.set(conversationId, session);
-  console.log(`Total active sessions: ${conversationSessions.size}`);
   return session;
 }
 
 // Clean up inactive sessions
 function cleanupInactiveSessions() {
   const now = Date.now();
-  console.log(`Running periodic cleanup, checking ${conversationSessions.size} sessions`);
-  
   for (const [conversationId, session] of conversationSessions.entries()) {
-    const inactiveTime = now - session.lastActivity;
-    console.log(`Session ${conversationId} inactive for ${Math.floor(inactiveTime/1000/60)} minutes`);
-    
-    if (inactiveTime > SESSION_TIMEOUT_MS) {
+    if (now - session.lastActivity > SESSION_TIMEOUT_MS) {
       console.log(`Cleaning up inactive session: ${conversationId}`);
       // Close browser
-      session.browser.close();
+      session.browser.close().catch(err => {
+        console.error(`Error closing browser for session ${conversationId}:`, err);
+      });
       // Remove from map
       conversationSessions.delete(conversationId);
-      console.log(`Removed inactive session: ${conversationId}`);
     }
   }
-  
-  console.log(`Cleanup complete, ${conversationSessions.size} active sessions remaining`);
 }
 
 // Function to broadcast to clients in a specific conversation
@@ -205,6 +218,63 @@ server.get("/conversation", async (request, reply) => {
   });
 });
 
+// Add endpoint to get the BrowserBase live view link for a conversation
+server.get("/conversation/:conversationId/liveview", async (request, reply) => {
+  try {
+    const { conversationId } = request.params as { conversationId: string };
+    
+    // Check if the conversation session exists
+    if (!conversationSessions.has(conversationId)) {
+      return reply.code(404).send({
+        success: false,
+        error: "Conversation not found",
+      });
+    }
+    
+    const session = conversationSessions.get(conversationId)!;
+    
+    // Check if the BrowserBase session ID exists
+    if (!session.browserbaseSessionId) {
+      return reply.code(400).send({
+        success: false,
+        error: "BrowserBase session ID not found for this conversation",
+      });
+    }
+    
+    // Initialize BrowserBase
+    const apiKey = process.env.BROWSERBASE_API_KEY;
+    
+    if (!apiKey) {
+      return reply.code(500).send({
+        success: false,
+        error: "BROWSERBASE_API_KEY not set in environment variables",
+      });
+    }
+    
+    const bb = new Browserbase({
+      apiKey
+    });
+    
+    // Get the live view links for the session
+    const liveViewLinks = await bb.sessions.debug(session.browserbaseSessionId);
+    const liveViewLink = liveViewLinks.debuggerFullscreenUrl;
+    
+    console.log(`🔍 Live View Link for conversation ${conversationId}: ${liveViewLink}`);
+    
+    // Return the live view link
+    return reply.code(200).send({
+      success: true,
+      liveViewLink,
+    });
+  } catch (error) {
+    console.error("Error getting live view link:", error);
+    return reply.code(500).send({
+      success: false,
+      error: "Failed to get live view link",
+    });
+  }
+});
+
 server.register(async function (server: FastifyInstance) {
   server.get(
     "/browser",
@@ -227,14 +297,10 @@ server.register(async function (server: FastifyInstance) {
         return;
       }
       
-      console.log(`WebSocket connection request for conversation: ${conversationId}`);
-      
+      console.log({conversationId})
       // Initialize or get browser session for this conversation
       const session = await initBrowserForConversation(conversationId);
-      
-      // Add this client to the session's connected clients
       session.connectedClients.add(connection.socket);
-      console.log(`Connected clients for conversation ${conversationId}: ${session.connectedClients.size}`);
       
       // Send initial screenshot
       const screenshot = await session.page.screenshot({ type: "jpeg", quality: 80 });
@@ -283,29 +349,9 @@ server.register(async function (server: FastifyInstance) {
       });
 
       connection.socket.on("close", () => {
-        console.log(`Client disconnected from browser WebSocket for conversation: ${conversationId}`);
+        console.log("Client disconnected from browser WebSocket");
         session.connectedClients.delete(connection.socket);
         clearInterval(screenshotInterval);
-        
-        console.log(`Remaining clients for conversation ${conversationId}: ${session.connectedClients.size}`);
-        
-        // If this was the last client and we're not in the middle of cleanup,
-        // schedule cleanup after a short delay to avoid race conditions
-        if (session.connectedClients.size === 0) {
-          console.log(`No more clients for conversation ${conversationId}, scheduling cleanup`);
-          setTimeout(async () => {
-            // Double-check that no new clients connected in the meantime
-            if (conversationSessions.has(conversationId) && 
-                conversationSessions.get(conversationId)!.connectedClients.size === 0) {
-              console.log(`Cleaning up unused session for conversation: ${conversationId}`);
-              const sessionToClean = conversationSessions.get(conversationId)!;
-              await sessionToClean.browser.close();
-              conversationSessions.delete(conversationId);
-              console.log(`Removed session for conversation: ${conversationId}`);
-              console.log(`Remaining active sessions: ${conversationSessions.size}`);
-            }
-          }, 5000); // 5 second delay before cleanup
-        }
       });
     }
   );
@@ -314,8 +360,11 @@ server.register(async function (server: FastifyInstance) {
 // Cleanup on server shutdown
 process.on("SIGTERM", async () => {
   // Close all browser instances
-  for (const [_, session] of conversationSessions.entries()) {
-    await session.browser.close();
+  for (const [conversationId, session] of conversationSessions.entries()) {
+    console.log(`Closing browser for session ${conversationId}`);
+    await session.browser.close().catch(err => {
+      console.error(`Error closing browser for session ${conversationId}:`, err);
+    });
   }
   process.exit(0);
 });
@@ -338,15 +387,17 @@ server.post<{ Body: ChatMessage }>("/chat", async (request, reply) => {
     const session = await initBrowserForConversation(conversationId);
     session.lastActivity = Date.now();
     
-    // Add the new user message to the conversation history
-    session.conversationHistory.push({
-      role: "user",
-      content: [{ type: "input_text", text: message }],
-    });
+    // Create a conversation history with the user message
+    const conversationHistory = [
+      {
+        role: "user",
+        content: [{ type: "input_text", text: message }],
+      },
+    ];
 
-    console.log(`Running agent for conversation: ${conversationId} with ${session.conversationHistory.length} messages in history`);
-    // Run the agent with the full conversation history
-    session.agent.runFullTurn(session.conversationHistory, {
+    console.log({conversationId})
+    // Run the agent
+    session.agent.runFullTurn(conversationHistory, {
       printSteps: true,
       showImages: true,
       messageCallback: (message) => {

@@ -170,6 +170,19 @@
     "@babel/helper-string-parser" "^7.25.9"
     "@babel/helper-validator-identifier" "^7.25.9"
 
+"@browserbasehq/sdk@^2.4.0":
+  version "2.4.0"
+  resolved "https://registry.yarnpkg.com/@browserbasehq/sdk/-/sdk-2.4.0.tgz#512d7b76ca2bd22c45581cb0d44e9443b758aa8f"
+  integrity sha512-o1+6C4MQCpZ9+8je1IUF9UvWLuSzLcBjE1kPfu2sw7MgRFNFJS1NcWCiEmjZe71ke4CNojZWaU7XTNxh8z2PUw==
+  dependencies:
+    "@types/node" "^18.11.18"
+    "@types/node-fetch" "^2.6.4"
+    abort-controller "^3.0.0"
+    agentkeepalive "^4.2.1"
+    form-data-encoder "1.7.2"
+    formdata-node "^4.3.2"
+    node-fetch "^2.6.7"
+
 "@cspotcode/source-map-support@^0.8.0":
   version "0.8.1"
   resolved "https://registry.yarnpkg.com/@cspotcode/source-map-support/-/source-map-support-0.8.1.tgz#00629c35a688e05a88b1cda684fb9d5e73f000a1"
@@ -1642,6 +1655,11 @@ playwright-core@1.51.0:
   version "1.51.0"
   resolved "https://registry.yarnpkg.com/playwright-core/-/playwright-core-1.51.0.tgz#bb23ea6bb6298242d088ae5e966ffcf8dc9827e8"
   integrity sha512-x47yPE3Zwhlil7wlNU/iktF7t2r/URR3VLbH6EknJd/04Qc/PSJ0EY3CMXipmglLG+zyRxW6HNo2EGbKLHPWMg==
+
+playwright-core@^1.51.1:
+  version "1.51.1"
+  resolved "https://registry.yarnpkg.com/playwright-core/-/playwright-core-1.51.1.tgz#d57f0393e02416f32a47cf82b27533656a8acce1"
+  integrity sha512-/crRMj8+j/Nq5s8QcvegseuyeZPxpQCZb6HNk3Sos3BlZyAknRjoyJPFWkpNn8v0+P3WiwqFF8P+zQo4eqiNuw==
 
 playwright@^1.51.0:
   version "1.51.0"

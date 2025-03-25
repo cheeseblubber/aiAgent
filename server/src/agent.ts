@@ -1,4 +1,4 @@
-import { Page } from "playwright";
+import { Page } from "playwright-core";
 import OpenAI from "openai";
 import { Tool, EasyInputMessage, Response } from "openai/resources/responses/responses";
 import { APIPromise } from "openai/core";
