@@ -302,14 +302,34 @@ server.register(async function (server: FastifyInstance) {
       const session = await initBrowserForConversation(conversationId);
       session.connectedClients.add(connection.socket);
       
-      // Send initial screenshot
-      const screenshot = await session.page.screenshot({ type: "jpeg", quality: 80 });
-      connection.socket.send(
-        JSON.stringify({
-          type: "screenshot",
-          data: { image: screenshot.toString("base64") },
-        })
-      );
+      // Send initial screenshot using CDP for better performance
+      try {
+        // Create a CDP session for faster screenshots
+        const client = await session.browser.contexts()[0].newCDPSession(session.page);
+        
+        // Capture the screenshot using CDP
+        const { data } = await client.send("Page.captureScreenshot", {
+          format: "jpeg",
+          quality: 80,
+        });
+        
+        connection.socket.send(
+          JSON.stringify({
+            type: "screenshot",
+            data: { image: data },
+          })
+        );
+      } catch (error) {
+        console.error("Error taking initial CDP screenshot:", error);
+        // Fallback to regular screenshot if CDP fails
+        const screenshot = await session.page.screenshot({ type: "jpeg", quality: 80 });
+        connection.socket.send(
+          JSON.stringify({
+            type: "screenshot",
+            data: { image: screenshot.toString("base64") },
+          })
+        );
+      }
       
       // Send current page info
       const pageUrl = session.page.url();
@@ -321,19 +341,47 @@ server.register(async function (server: FastifyInstance) {
         })
       );
 
-      // Set up periodic screenshots
+      // Create a CDP session for faster screenshots
+      let cdpClient: any = null;
+      try {
+        cdpClient = await session.browser.contexts()[0].newCDPSession(session.page);
+      } catch (error) {
+        console.error("Error creating CDP session:", error);
+      }
+      
+      // Set up periodic screenshots using CDP for better performance
       const screenshotInterval = setInterval(async () => {
         if (session.page && connection.socket.readyState === WebSocket.OPEN) {
-          const screenshot = await session.page.screenshot({
-            type: "jpeg",
-            quality: 80,
-          });
-          connection.socket.send(
-            JSON.stringify({
-              type: "screenshot",
-              data: { image: screenshot.toString("base64") },
-            })
-          );
+          try {
+            if (cdpClient) {
+              // Use CDP for faster screenshots
+              const { data } = await cdpClient.send("Page.captureScreenshot", {
+                format: "jpeg",
+                quality: 80,
+              });
+              
+              connection.socket.send(
+                JSON.stringify({
+                  type: "screenshot",
+                  data: { image: data },
+                })
+              );
+            } else {
+              // Fallback to regular screenshot if CDP is not available
+              const screenshot = await session.page.screenshot({
+                type: "jpeg",
+                quality: 80,
+              });
+              connection.socket.send(
+                JSON.stringify({
+                  type: "screenshot",
+                  data: { image: screenshot.toString("base64") },
+                })
+              );
+            }
+          } catch (error) {
+            console.error("Error taking periodic screenshot:", error);
+          }
         }
       }, 1000); // Send screenshot every second
 
@@ -348,8 +396,17 @@ server.register(async function (server: FastifyInstance) {
         }
       });
 
-      connection.socket.on("close", () => {
+      connection.socket.on("close", async () => {
         console.log("Client disconnected from browser WebSocket");
+        
+        // Clean up CDP client if it exists
+        if (cdpClient) {
+          try {
+            await cdpClient.detach();
+          } catch (error) {
+            console.error("Error detaching CDP client:", error);
+          }
+        }
         session.connectedClients.delete(connection.socket);
         clearInterval(screenshotInterval);
       });
