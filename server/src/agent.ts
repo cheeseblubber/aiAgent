@@ -27,10 +27,6 @@ export function createResponse(
   });
 }
 
-export function showImage(base64Image: string): void {
-  console.log("Displaying image (not implemented in this environment)");
-}
-
 export function pp(...args: any[]): void {
   console.log(JSON.stringify(args, null, 2));
 }
@@ -54,8 +50,6 @@ export function checkBlocklistedUrl(url: string): void {
     }
   }
 }
-
-// Types for the Agent class
 
 // Import ComputerTool from OpenAI SDK
 import { ComputerTool } from "openai/resources/responses/responses";
@@ -164,7 +158,7 @@ export class Agent {
   tools: Array<Tool | ComputerPreviewTool>;
   printSteps: boolean;
   debug: boolean;
-  showImages: boolean;
+
   acknowledgeSafetyCheckCallback: (message: string) => boolean;
   isInterrupted: boolean;
 
@@ -179,7 +173,7 @@ export class Agent {
     this.tools = tools;
     this.printSteps = true;
     this.debug = false;
-    this.showImages = false;
+
     this.acknowledgeSafetyCheckCallback = acknowledgeSafetyCheckCallback;
     this.isInterrupted = false;
 
@@ -316,10 +310,6 @@ export class Agent {
         screenshotBase64 = await this.computer.screenshot();
       }
 
-      if (this.showImages) {
-        showImage(screenshotBase64);
-      }
-
       // if user doesn't ack all safety checks exit with error
       const pendingChecks = computerItem.pending_safety_checks || [];
       for (const check of pendingChecks) {
@@ -364,20 +354,20 @@ export class Agent {
     options: {
       printSteps?: boolean;
       debug?: boolean;
-      showImages?: boolean;
+
       messageCallback?: (message: string, type: AgentMessageType) => void;
     } = {}
   ): Promise<any[]> {
     const {
       printSteps = true,
       debug = false,
-      showImages = false,
+
       messageCallback,
     } = options;
 
     this.printSteps = printSteps;
     this.debug = debug;
-    this.showImages = showImages;
+
     // Reset interruption flag at the start of a new turn
     this.isInterrupted = false;
 

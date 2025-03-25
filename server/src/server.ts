@@ -480,7 +480,7 @@ server.post<{ Body: ChatMessage }>("/chat", async (request, reply) => {
     // Run the agent
     session.agent.runFullTurn(conversationHistory, {
       printSteps: true,
-      showImages: true,
+
       messageCallback: (message, type) => {
         broadcastChatMessage(conversationId, message, type);
       },
