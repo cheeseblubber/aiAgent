@@ -3,16 +3,16 @@ import { Page } from "playwright-core";
 export class Computer {
   dimensions: [number, number];
   environment: "mac" | "windows" | "ubuntu" | "browser";
-  page?: Page;
+  page: Page;
 
   constructor(
     dimensions: [number, number] = [1024, 768],
     environment: "mac" | "windows" | "ubuntu" | "browser" = "browser",
-    page?: Page
+    page: Page,
   ) {
+    this.page = page;
     this.dimensions = dimensions;
     this.environment = environment;
-    this.page = page;
   }
 
   async click(
@@ -20,10 +20,6 @@ export class Computer {
     y: number,
     button: "left" | "right" | "wheel" | "back" | "forward" = "left"
   ): Promise<void> {
-    if (!this.page) {
-      throw new Error("Page not initialized");
-    }
-
     const mappedButton =
       button === "wheel"
         ? "middle"
@@ -45,28 +41,16 @@ export class Computer {
   }
 
   async double_click(x: number, y: number): Promise<void> {
-    if (!this.page) {
-      throw new Error("Page not initialized");
-    }
-
     console.log(`Action: double click at (${x}, ${y})`);
     await this.page.mouse.dblclick(x, y);
   }
 
   async move(x: number, y: number): Promise<void> {
-    if (!this.page) {
-      throw new Error("Page not initialized");
-    }
-
     console.log(`Action: move mouse to (${x}, ${y})`);
     await this.page.mouse.move(x, y);
   }
 
   async drag(path: Array<[number, number]>): Promise<void> {
-    if (!this.page) {
-      throw new Error("Page not initialized");
-    }
-
     if (path.length < 2) {
       throw new Error("Drag path must contain at least two points");
     }
@@ -94,10 +78,6 @@ export class Computer {
     scroll_x: number,
     scroll_y: number
   ): Promise<void> {
-    if (!this.page) {
-      throw new Error("Page not initialized");
-    }
-
     console.log(
       `Action: scroll at (${x}, ${y}) with offsets (scrollX=${scroll_x}, scrollY=${scroll_y})`
     );
@@ -106,10 +86,6 @@ export class Computer {
   }
 
   async keypress(keys: string[]): Promise<void> {
-    if (!this.page) {
-      throw new Error("Page not initialized");
-    }
-
     for (const k of keys) {
       console.log(`Action: keypress '${k}'`);
       if (k.includes("ENTER")) {
@@ -123,65 +99,38 @@ export class Computer {
   }
 
   async type(text: string): Promise<void> {
-    if (!this.page) {
-      throw new Error("Page not initialized");
-    }
-
     console.log(`Action: type text '${text}'`);
     await this.page.keyboard.type(text);
   }
 
   async wait(ms: number = 2000): Promise<void> {
-    if (!this.page) {
-      throw new Error("Page not initialized");
-    }
-
     console.log(`Action: wait for ${ms}ms`);
     await this.page.waitForTimeout(ms);
   }
 
   async screenshot(): Promise<string> {
     console.log("Action: screenshot");
-    if (!this.page) {
-      throw new Error("Page not initialized");
-    }
-
+    
     // Take an actual screenshot using Playwright
     const screenshotBuffer = await this.page.screenshot({ type: "png" });
     return screenshotBuffer.toString("base64");
   }
 
   async get_current_url(): Promise<string> {
-    if (!this.page) {
-      throw new Error("Page not initialized");
-    }
-
     return this.page.url();
   }
 
   async goto(url: string): Promise<void> {
-    if (!this.page) {
-      throw new Error("Page not initialized");
-    }
-
     console.log(`Action: navigate to ${url}`);
     await this.page.goto(url);
   }
 
   async back(): Promise<void> {
-    if (!this.page) {
-      throw new Error("Page not initialized");
-    }
-
     console.log("Action: navigate back");
     await this.page.goBack();
   }
 
   async forward(): Promise<void> {
-    if (!this.page) {
-      throw new Error("Page not initialized");
-    }
-
     console.log("Action: navigate forward");
     await this.page.goForward();
   }
