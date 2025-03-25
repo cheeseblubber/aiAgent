@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { sendChatMessage } from '../api'
 import { useConversation } from '../context/ConversationContext'
+import { XCircleIcon } from '@heroicons/react/24/solid'
 
 interface Message {
   content: string
@@ -12,7 +13,14 @@ function ChatComponent() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const processedMessages = useRef<Set<string>>(new Set()) // Track processed message contents
-  const { conversationId, isLoading, webSocket } = useConversation()
+  const { 
+    conversationId, 
+    isLoading, 
+    webSocket, 
+    isAgentRunning, 
+    setIsAgentRunning, 
+    interruptAgent 
+  } = useConversation()
 
   // Set up WebSocket message handler
   useEffect(() => {
@@ -27,7 +35,42 @@ function ChatComponent() {
 
         // Handle chat messages
         if (data.type === 'chat') {
-          const { content, sender } = data.data
+          const { content, sender, messageType } = data.data
+
+          // Update agent running state based on message type
+          if (messageType) {
+            switch (messageType) {
+              case 'complete':
+              case 'interrupted':
+              case 'error':
+                // These message types indicate the agent is no longer running
+                setIsAgentRunning(false)
+                break
+              case 'action':
+              case 'thinking':
+                // These message types indicate the agent is still running
+                // No need to change state as it should already be set to running
+                break
+              default:
+                // For backward compatibility or unknown types
+                // Fall back to the old behavior
+                if (content === 'Agent execution was interrupted.' || 
+                    (sender === 'ai' && content.includes('interrupted'))) {
+                  setIsAgentRunning(false)
+                }
+                break
+            }
+          } else {
+            // Fallback for messages without a type (backward compatibility)
+            if (content === 'Agent execution was interrupted.' || 
+                (sender === 'ai' && content.includes('interrupted'))) {
+              setIsAgentRunning(false)
+            } else if (sender === 'ai' && !content.includes('interrupted')) {
+              // Set agent as no longer running when we receive a normal AI message
+              // This assumes the agent sends a final message when it completes
+              setIsAgentRunning(false)
+            }
+          }
 
           // Create a simple hash of the message to use for deduplication
           const messageHash = `${content}-${Date.now()}`
@@ -70,11 +113,19 @@ function ChatComponent() {
     setInput('')
 
     try {
+      // Set agent as running before sending the message
+      setIsAgentRunning(true)
+      
       // Send the message with conversation ID
       await sendChatMessage(input, conversationId)
-      // This prevents duplicate messages
+      
+      // Note: We'll set isAgentRunning to false when we receive the final message
+      // from the agent via WebSocket, or when the agent is interrupted
     } catch (error) {
       console.error('Error sending message:', error)
+      // Reset agent running state on error
+      setIsAgentRunning(false)
+      
       const errorMessageId = `error-${Date.now()}`
       const errorMessage = {
         content: 'Sorry, something went wrong. Please try again.',
@@ -82,6 +133,19 @@ function ChatComponent() {
         id: errorMessageId
       }
       setMessages(prev => [...prev, errorMessage])
+    }
+  }
+  
+  // Handle agent interruption
+  const handleInterrupt = async () => {
+    if (!isAgentRunning) return
+    
+    try {
+      await interruptAgent()
+      // We'll wait for the WebSocket message to update the UI
+    } catch (error) {
+      console.error('Error interrupting agent:', error)
+      setIsAgentRunning(false) // Force reset the state if there's an error
     }
   }
 
@@ -106,14 +170,26 @@ function ChatComponent() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Type your message..."
+          disabled={isAgentRunning}
           className="flex-1 p-2.5 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
-        <button
-          type="submit"
-          className="px-5 py-2.5 bg-blue-500 text-white rounded-lg text-base cursor-pointer transition-colors hover:bg-blue-700"
-        >
-          Send
-        </button>
+        {isAgentRunning ? (
+          <button
+            type="button"
+            onClick={handleInterrupt}
+            className="px-5 py-2.5 bg-red-500 text-white rounded-lg text-base cursor-pointer transition-colors hover:bg-red-700 flex items-center gap-2"
+          >
+            <XCircleIcon className="h-5 w-5" />
+            Stop
+          </button>
+        ) : (
+          <button
+            type="submit"
+            className="px-5 py-2.5 bg-blue-500 text-white rounded-lg text-base cursor-pointer transition-colors hover:bg-blue-700"
+          >
+            Send
+          </button>
+        )}
       </form>
     </div>
   )

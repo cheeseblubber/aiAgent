@@ -173,6 +173,14 @@ export function checkBlocklistedUrl(url: string): void {
 // Import ComputerTool from OpenAI SDK
 import { ComputerTool } from "openai/resources/responses/responses";
 
+// Define message types for agent communication
+export type AgentMessageType = 
+  | "action"     // Agent is performing an action
+  | "thinking"   // Agent is processing/thinking
+  | "complete"   // Agent has completed its task
+  | "error"      // Agent encountered an error
+  | "interrupted"; // Agent was interrupted
+
 // Extending the ComputerTool type from OpenAI SDK
 type ComputerPreviewTool = ComputerTool;
 
@@ -271,6 +279,7 @@ export class Agent {
   debug: boolean;
   showImages: boolean;
   acknowledgeSafetyCheckCallback: (message: string) => boolean;
+  isInterrupted: boolean;
 
   constructor(
     computer: Computer,
@@ -285,6 +294,7 @@ export class Agent {
     this.debug = false;
     this.showImages = false;
     this.acknowledgeSafetyCheckCallback = acknowledgeSafetyCheckCallback;
+    this.isInterrupted = false;
 
     this.tools.push({
       type: "computer-preview",
@@ -300,13 +310,13 @@ export class Agent {
     }
   }
 
-  async handleModelResponse(responseElement: ResponseItem, messageCallback?: (message: string) => void): Promise<ResponseItem[]> {
+  async handleModelResponse(responseElement: ResponseItem, messageCallback?: (message: string, type: AgentMessageType) => void): Promise<ResponseItem[]> {
     // Handle each responseElement; may cause a computer action + screenshot
     if (responseElement.type === "message") {
       const messageItem = responseElement as MessageItem;
       if (this.printSteps && messageItem.content?.[0]?.text) {
         console.log(messageItem.content[0].text);
-        messageCallback?.(messageItem.content[0].text);
+        messageCallback?.(messageItem.content[0].text, "thinking");
       }
     }
 
@@ -317,7 +327,7 @@ export class Agent {
 
       if (this.printSteps) {
         console.log(`${name}(${JSON.stringify(args)})`);
-        messageCallback?.(`${name}(${JSON.stringify(args)})`);
+        messageCallback?.(`${name}(${JSON.stringify(args)})`, "action");
       }
 
       if (this.computer.page) {
@@ -351,7 +361,7 @@ export class Agent {
 
       if (this.printSteps) {
         console.log(`${actionType}(${JSON.stringify(actionArgs)})`);
-        messageCallback?.(`${actionType}(${JSON.stringify(actionArgs)})`);
+        messageCallback?.(`${actionType}(${JSON.stringify(actionArgs)})`, "action");
       }
 
       if (this.computer) {
@@ -457,7 +467,7 @@ export class Agent {
       printSteps?: boolean;
       debug?: boolean;
       showImages?: boolean;
-      messageCallback?: (message: string) => void;
+      messageCallback?: (message: string, type: AgentMessageType) => void;
     } = {}
   ): Promise<any[]> {
     const { printSteps = true, debug = false, showImages = false, messageCallback } = options;
@@ -465,13 +475,16 @@ export class Agent {
     this.printSteps = printSteps;
     this.debug = debug;
     this.showImages = showImages;
+    // Reset interruption flag at the start of a new turn
+    this.isInterrupted = false;
 
     let modelResponses: any[] = [];
 
-    // Keep looping until we get a final response from the assistant
+    // Keep looping until we get a final response from the assistant or until interrupted
     while (
-      !modelResponses.length ||
-      modelResponses[modelResponses.length - 1]?.role !== "assistant"
+      !this.isInterrupted && 
+      (!modelResponses.length ||
+      modelResponses[modelResponses.length - 1]?.role !== "assistant")
     ) {
       // Debug print the sanitized conversation history and model responses
       this.debugPrint(
@@ -488,6 +501,15 @@ export class Agent {
 
       this.debugPrint(response);
 
+      // Check if interrupted
+      if (this.isInterrupted) {
+        if (messageCallback) {
+          messageCallback("Agent execution was interrupted.", "interrupted");
+        }
+        console.log("Agent execution was interrupted.");
+        break;
+      }
+
       // Handle response output
       if (!response.output) {
         if (this.debug) {
@@ -502,11 +524,41 @@ export class Agent {
 
       // Process each response element
       for (const responseElement of response.output) {
+        // Check if interrupted before processing each response element
+        if (this.isInterrupted) {
+          if (messageCallback) {
+            messageCallback("Agent execution was interrupted.", "interrupted");
+          }
+          console.log("Agent execution was interrupted.");
+          break;
+        }
         const responseResults = await this.handleModelResponse(responseElement, messageCallback);
         modelResponses = modelResponses.concat(responseResults);
       }
     }
 
+    // If interrupted, add a message to the responses
+    if (this.isInterrupted && messageCallback) {
+      messageCallback("Agent execution was interrupted.", "interrupted");
+      modelResponses.push({
+        role: "assistant",
+        content: [{ type: "text", text: "Agent execution was interrupted." }],
+      });
+    }
+
+    // If we completed successfully (not interrupted), send a completion message
+    if (!this.isInterrupted && messageCallback) {
+      messageCallback("Agent execution completed.", "complete");
+    }
+
     return modelResponses;
+  }
+  
+  /**
+   * Interrupts the agent's execution loop
+   */
+  interrupt(): void {
+    this.isInterrupted = true;
+    console.log("Agent interruption requested.");
   }
 }

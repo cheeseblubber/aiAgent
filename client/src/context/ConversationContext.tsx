@@ -7,6 +7,9 @@ interface ConversationContextType {
   isLoading: boolean;
   webSocket: WebSocket | null;
   wsStatus: 'connecting' | 'connected' | 'disconnected';
+  isAgentRunning: boolean;
+  setIsAgentRunning: (isRunning: boolean) => void;
+  interruptAgent: () => Promise<void>;
 }
 
 const ConversationContext = createContext<ConversationContextType | undefined>(undefined);
@@ -19,6 +22,7 @@ export function ConversationProvider({ children }: ConversationProviderProps) {
   const [conversationId, setConversationId] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
+  const [isAgentRunning, setIsAgentRunning] = useState<boolean>(false);
   const wsRef = useRef<WebSocket | null>(null);
 
   // Fetch conversation ID
@@ -82,12 +86,33 @@ export function ConversationProvider({ children }: ConversationProviderProps) {
     return <LoadingIndicator message="Initializing conversation..." />;
   }
 
+  // Function to interrupt the agent
+  const interruptAgentHandler = async () => {
+    if (!conversationId || !isAgentRunning) return;
+    
+    try {
+      const result = await import('../api').then(api => api.interruptAgent(conversationId));
+      if (result.success) {
+        console.log('Agent interrupted successfully');
+        // We'll let the WebSocket message update the UI state
+        // The server will send a message when the agent is interrupted
+      } else {
+        console.error('Failed to interrupt agent:', result.error);
+      }
+    } catch (error) {
+      console.error('Error interrupting agent:', error);
+    }
+  };
+
   return (
     <ConversationContext.Provider value={{ 
       conversationId, 
       isLoading, 
       webSocket: wsRef.current,
-      wsStatus
+      wsStatus,
+      isAgentRunning,
+      setIsAgentRunning,
+      interruptAgent: interruptAgentHandler
     }}>
       {children}
     </ConversationContext.Provider>

@@ -61,12 +61,16 @@ interface BrowserUpdate {
   data: any;
 }
 
+// Import the AgentMessageType from agent.ts
+import { AgentMessageType } from "./agent";
+
 // Interface for chat messages sent via WebSocket
 interface ChatUpdate {
   type: "chat";
   data: {
     content: string;
     sender: "ai";
+    messageType?: AgentMessageType; // Optional for backward compatibility
   };
 }
 
@@ -172,6 +176,24 @@ function cleanupInactiveSessions() {
   }
 }
 
+// Function to interrupt an agent for a specific conversation
+function interruptAgent(conversationId: string): boolean {
+  const session = conversationSessions.get(conversationId);
+  if (!session) {
+    console.log(`No session found for conversation: ${conversationId}`);
+    return false;
+  }
+  
+  try {
+    session.agent.interrupt();
+    console.log(`Agent interrupted for conversation: ${conversationId}`);
+    return true;
+  } catch (error) {
+    console.error(`Error interrupting agent for conversation ${conversationId}:`, error);
+    return false;
+  }
+}
+
 // Function to broadcast to clients in a specific conversation
 function broadcastToConversation(conversationId: string, update: BrowserUpdate) {
   const session = conversationSessions.get(conversationId);
@@ -186,7 +208,7 @@ function broadcastToConversation(conversationId: string, update: BrowserUpdate) 
 }
 
 // Function to broadcast chat messages to clients in a specific conversation
-function broadcastChatMessage(conversationId: string, content: string) {
+function broadcastChatMessage(conversationId: string, content: string, messageType?: AgentMessageType) {
   const session = conversationSessions.get(conversationId);
   if (!session) return;
 
@@ -195,6 +217,7 @@ function broadcastChatMessage(conversationId: string, content: string) {
     data: {
       content,
       sender: "ai",
+      messageType, // Include the message type if provided
     },
   };
 
@@ -457,8 +480,8 @@ server.post<{ Body: ChatMessage }>("/chat", async (request, reply) => {
     session.agent.runFullTurn(conversationHistory, {
       printSteps: true,
       showImages: true,
-      messageCallback: (message) => {
-        broadcastChatMessage(conversationId, message);
+      messageCallback: (message, type) => {
+        broadcastChatMessage(conversationId, message, type);
       },
     });
 
@@ -471,6 +494,40 @@ server.post<{ Body: ChatMessage }>("/chat", async (request, reply) => {
     return reply.code(500).send({
       success: false,
       error: "Failed to process message",
+    });
+  }
+});
+
+// API endpoint to interrupt an agent for a specific conversation
+server.post<{ Params: { conversationId: string } }>("/interrupt/:conversationId", async (request, reply) => {
+  try {
+    const { conversationId } = request.params;
+    
+    if (!conversationId) {
+      return reply.code(400).send({
+        success: false,
+        error: "Missing conversation ID",
+      });
+    }
+    
+    const success = interruptAgent(conversationId);
+    
+    if (success) {
+      return reply.code(200).send({
+        success: true,
+        message: `Agent interrupted for conversation: ${conversationId}`,
+      });
+    } else {
+      return reply.code(404).send({
+        success: false,
+        error: `No active agent found for conversation: ${conversationId}`,
+      });
+    }
+  } catch (error) {
+    console.error("Error interrupting agent:", error);
+    return reply.code(500).send({
+      success: false,
+      error: "Failed to interrupt agent",
     });
   }
 });

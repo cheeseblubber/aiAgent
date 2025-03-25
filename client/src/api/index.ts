@@ -6,6 +6,7 @@ export const API_ENDPOINTS = {
   browserWs: `${WS_BASE}/browser`,
   conversation: `${API_BASE}/conversation`,
   liveView: (conversationId: string) => `${API_BASE}/conversation/${conversationId}/liveview`,
+  interrupt: (conversationId: string) => `${API_BASE}/interrupt/${conversationId}`,
 } as const
 
 // Generate a large random number for conversation ID
@@ -59,6 +60,32 @@ export const sendChatMessage = async (message: string, conversationId: string): 
   }
 
   return data
+}
+
+// Function to interrupt an agent for a specific conversation
+export const interruptAgent = async (conversationId: string): Promise<ChatResponse> => {
+  try {
+    const response = await fetch(API_ENDPOINTS.interrupt(conversationId), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+
+    const data = await response.json()
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || 'Failed to interrupt agent')
+    }
+
+    return data
+  } catch (error) {
+    console.error('Error interrupting agent:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }
+  }
 }
 
 // Interface for the live view link response
