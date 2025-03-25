@@ -1,6 +1,10 @@
 import { Page } from "playwright-core";
 import OpenAI from "openai";
-import { Tool, EasyInputMessage, Response } from "openai/resources/responses/responses";
+import {
+  Tool,
+  EasyInputMessage,
+  Response,
+} from "openai/resources/responses/responses";
 import { APIPromise } from "openai/core";
 import { tools } from "./tools";
 
@@ -125,7 +129,7 @@ export function createResponse(
   model: string,
   input: EasyInputMessage[],
   tools: Array<Tool>,
-  truncation: 'auto' | 'disabled' | null
+  truncation: "auto" | "disabled" | null
 ): APIPromise<Response> {
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
@@ -173,11 +177,11 @@ export function checkBlocklistedUrl(url: string): void {
 import { ComputerTool } from "openai/resources/responses/responses";
 
 // Define message types for agent communication
-export type AgentMessageType = 
-  | "action"     // Agent is performing an action
-  | "thinking"   // Agent is processing/thinking
-  | "complete"   // Agent has completed its task
-  | "error"      // Agent encountered an error
+export type AgentMessageType =
+  | "action" // Agent is performing an action
+  | "thinking" // Agent is processing/thinking
+  | "complete" // Agent has completed its task
+  | "error" // Agent encountered an error
   | "interrupted"; // Agent was interrupted
 
 // Extending the ComputerTool type from OpenAI SDK
@@ -220,12 +224,12 @@ type OtherAction = {
 };
 
 // Union of all possible computer actions
-type ComputerAction = 
-  | ClickAction 
-  | ScrollAction 
-  | KeypressAction 
-  | TypeAction 
-  | WaitAction 
+type ComputerAction =
+  | ClickAction
+  | ScrollAction
+  | KeypressAction
+  | TypeAction
+  | WaitAction
   | OtherAction;
 
 type PendingSafetyCheck = {
@@ -309,7 +313,10 @@ export class Agent {
     }
   }
 
-  async handleModelResponse(responseElement: ResponseItem, messageCallback?: (message: string, type: AgentMessageType) => void): Promise<ResponseItem[]> {
+  async handleModelResponse(
+    responseElement: ResponseItem,
+    messageCallback?: (message: string, type: AgentMessageType) => void
+  ): Promise<ResponseItem[]> {
     // Handle each responseElement; may cause a computer action + screenshot
     if (responseElement.type === "message") {
       const messageItem = responseElement as MessageItem;
@@ -360,35 +367,43 @@ export class Agent {
 
       if (this.printSteps) {
         console.log(`${actionType}(${JSON.stringify(actionArgs)})`);
-        messageCallback?.(`${actionType}(${JSON.stringify(actionArgs)})`, "action");
+        messageCallback?.(
+          `${actionType}(${JSON.stringify(actionArgs)})`,
+          "action"
+        );
       }
 
       if (this.computer) {
         // Execute the appropriate computer action based on type
         switch (actionType) {
           case "click": {
-            if ('x' in actionArgs && 'y' in actionArgs) {
+            if ("x" in actionArgs && "y" in actionArgs) {
               const { x, y, button = "left" } = actionArgs as ClickAction;
               await this.computer.click(x, y, button);
             }
             break;
           }
           case "scroll": {
-            if ('x' in actionArgs && 'y' in actionArgs && 'scroll_x' in actionArgs && 'scroll_y' in actionArgs) {
+            if (
+              "x" in actionArgs &&
+              "y" in actionArgs &&
+              "scroll_x" in actionArgs &&
+              "scroll_y" in actionArgs
+            ) {
               const { x, y, scroll_x, scroll_y } = actionArgs as ScrollAction;
               await this.computer.scroll(x, y, scroll_x, scroll_y);
             }
             break;
           }
           case "keypress": {
-            if ('keys' in actionArgs) {
+            if ("keys" in actionArgs) {
               const { keys } = actionArgs as KeypressAction;
               await this.computer.keypress(keys);
             }
             break;
           }
           case "type": {
-            if ('text' in actionArgs) {
+            if ("text" in actionArgs) {
               const { text } = actionArgs as TypeAction;
               await this.computer.type(text);
             }
@@ -469,7 +484,12 @@ export class Agent {
       messageCallback?: (message: string, type: AgentMessageType) => void;
     } = {}
   ): Promise<any[]> {
-    const { printSteps = true, debug = false, showImages = false, messageCallback } = options;
+    const {
+      printSteps = true,
+      debug = false,
+      showImages = false,
+      messageCallback,
+    } = options;
 
     this.printSteps = printSteps;
     this.debug = debug;
@@ -481,9 +501,9 @@ export class Agent {
 
     // Keep looping until we get a final response from the assistant or until interrupted
     while (
-      !this.isInterrupted && 
+      !this.isInterrupted &&
       (!modelResponses.length ||
-      modelResponses[modelResponses.length - 1]?.role !== "assistant")
+        modelResponses[modelResponses.length - 1]?.role !== "assistant")
     ) {
       // Debug print the sanitized conversation history and model responses
       this.debugPrint(
@@ -504,15 +524,23 @@ export class Agent {
       } catch (error) {
         console.error("Error creating OpenAI response:", error);
         if (messageCallback) {
-          messageCallback("An error occurred while processing your request. Please try again.", "error");
+          messageCallback(
+            "An error occurred while processing your request. Please try again.",
+            "error"
+          );
         }
-        
+
         // Add error message to model responses
         modelResponses.push({
           role: "assistant",
-          content: [{ type: "text", text: "I encountered an error while processing your request. Please try again." }],
+          content: [
+            {
+              type: "text",
+              text: "I encountered an error while processing your request. Please try again.",
+            },
+          ],
         });
-        
+
         // Break the loop to stop further processing
         break;
       }
@@ -548,7 +576,10 @@ export class Agent {
           console.log("Agent execution was interrupted.");
           break;
         }
-        const responseResults = await this.handleModelResponse(responseElement, messageCallback);
+        const responseResults = await this.handleModelResponse(
+          responseElement,
+          messageCallback
+        );
         modelResponses = modelResponses.concat(responseResults);
       }
     }
@@ -569,7 +600,7 @@ export class Agent {
 
     return modelResponses;
   }
-  
+
   /**
    * Interrupts the agent's execution loop
    */
