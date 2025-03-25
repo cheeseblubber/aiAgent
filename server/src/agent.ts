@@ -4,7 +4,6 @@ import { Tool, EasyInputMessage, Response } from "openai/resources/responses/res
 import { APIPromise } from "openai/core";
 import { tools } from "./tools";
 
-// TypeScript equivalent of the Python Computer class
 export class Computer {
   dimensions: [number, number];
   environment: "mac" | "windows" | "ubuntu" | "browser";
@@ -492,14 +491,31 @@ export class Agent {
       );
 
       // Get response from the model
-      const response = (await createResponse(
-        this.model,
-        conversationHistory.concat(modelResponses),
-        this.tools,
-        "auto"
-      )) as ResponseOutput;
+      let response: ResponseOutput;
+      try {
+        response = (await createResponse(
+          this.model,
+          conversationHistory.concat(modelResponses),
+          this.tools,
+          "auto"
+        )) as ResponseOutput;
 
-      this.debugPrint(response);
+        this.debugPrint(response);
+      } catch (error) {
+        console.error("Error creating OpenAI response:", error);
+        if (messageCallback) {
+          messageCallback("An error occurred while processing your request. Please try again.", "error");
+        }
+        
+        // Add error message to model responses
+        modelResponses.push({
+          role: "assistant",
+          content: [{ type: "text", text: "I encountered an error while processing your request. Please try again." }],
+        });
+        
+        // Break the loop to stop further processing
+        break;
+      }
 
       // Check if interrupted
       if (this.isInterrupted) {
