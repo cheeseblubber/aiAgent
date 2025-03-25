@@ -9,7 +9,8 @@ import { SocketStream } from "@fastify/websocket";
 import type { Browser, Page, ConsoleMessage } from "playwright-core";
 import { chromium } from "playwright-core";
 import Browserbase from "@browserbasehq/sdk";
-import { Agent, Computer } from "./agent";
+import { Agent } from "./agent";
+import { Computer } from "./computer";
 import { toolsList } from "./tools";
 
 const server = fastify({

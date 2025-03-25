@@ -70,6 +70,7 @@ export const interruptAgent = async (conversationId: string): Promise<ChatRespon
       headers: {
         'Content-Type': 'application/json',
       },
+      body: JSON.stringify({ action: 'interrupt' }), // Add a body to the request
     })
 
     const data = await response.json()
