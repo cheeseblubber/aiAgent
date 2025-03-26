@@ -185,11 +185,7 @@ export class Agent {
     });
   }
 
-  debugPrint(...args: unknown[]): void {
-    if (this.debug) {
-      pp(...args);
-    }
-  }
+
 
   async handleModelResponse(
     responseElement: ResponseItem,
@@ -379,10 +375,6 @@ export class Agent {
       (!modelResponses.length ||
         modelResponses[modelResponses.length - 1]?.role !== "assistant")
     ) {
-      // Debug print the sanitized conversation history and model responses
-      this.debugPrint(
-        conversationHistory.concat(modelResponses).map(sanitizeMessage)
-      );
 
       // Get response from the model
       let response: ResponseOutput;
@@ -394,7 +386,6 @@ export class Agent {
           "auto"
         )) as ResponseOutput;
 
-        this.debugPrint(response);
       } catch (error) {
         console.error("Error creating OpenAI response:", error);
         if (messageCallback) {
