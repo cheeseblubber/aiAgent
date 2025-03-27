@@ -350,7 +350,6 @@ export class Agent {
     options: {
       printSteps?: boolean;
       debug?: boolean;
-
       messageCallback?: (message: string, type: AgentMessageType) => void;
     } = {}
   ): Promise<any[]> {

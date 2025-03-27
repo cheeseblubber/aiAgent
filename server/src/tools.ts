@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { Tool } from "openai/resources/responses/responses";
-import { Page } from "playwright-core";
+import { Page } from "playwright";
 
 
 type Success = "success" | "error";

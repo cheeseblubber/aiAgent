@@ -6,8 +6,8 @@ import cors from "@fastify/cors";
 import ws from "@fastify/websocket";
 import { WebSocket } from "ws";
 import { SocketStream } from "@fastify/websocket";
-import type { Browser, Page, ConsoleMessage } from "playwright-core";
-import { chromium } from "playwright-core";
+import type { Browser, Page, ConsoleMessage } from "playwright";
+import { chromium } from "playwright";
 import Browserbase from "@browserbasehq/sdk";
 import { Agent } from "./agent";
 import { Computer } from "./computer";
@@ -100,18 +100,23 @@ async function initBrowserForConversation(conversationId: string): Promise<Conve
   });
 
   // Create a new session
-  const bbSession = await bb.sessions.create({
-    projectId
-  });
+  // const bbSession = await bb.sessions.create({
+  //   projectId
+  // });
 
-  console.log(`BrowserBase session created: ${bbSession.id}`);
+  // console.log(`BrowserBase session created: ${bbSession.id}`);
 
   // Connect to the session
-  const browser = await chromium.connectOverCDP(bbSession.connectUrl);
+  // const browser = await chromium.connectOverCDP(bbSession.connectUrl);
+  const browser = await chromium.launch({
+    headless: false,
+  });
 
   // Getting the default context to ensure the sessions are recorded
-  const context = browser.contexts()[0];
-  const page = context.pages()[0];
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 720 },
+  });
+  const page = await context.newPage();
 
   // Navigate to bing.com
   await page.goto("https://www.bing.com");
@@ -137,7 +142,7 @@ async function initBrowserForConversation(conversationId: string): Promise<Conve
     connectedClients: new Set<WebSocket>(),
     lastActivity: Date.now(),
     conversationHistory: [],
-    browserbaseSessionId: bbSession.id, // Store the BrowserBase session ID
+    browserbaseSessionId: undefined, // Store the BrowserBase session ID
   };
 
   // Set up page event listeners
