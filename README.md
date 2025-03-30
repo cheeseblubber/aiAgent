@@ -55,11 +55,15 @@ yarn dev:client
 
 # Start server only
 yarn dev:server
+
+# Start desktop app (Electron)
+yarn dev:desktop
 ```
 
 The application will be available at:
 - Client: http://localhost:5173
 - Server: http://localhost:3000
+- Desktop: Launches as an Electron app
 
 ## Database Management with Prisma
 
@@ -121,6 +125,31 @@ Start the production server:
 yarn start
 ```
 
+## Desktop Application
+
+### Development
+
+Run the desktop application in development mode:
+```bash
+yarn dev:desktop
+```
+
+This will start the Vite dev server for the client and launch the Electron app that connects to it.
+
+### Building the Desktop App
+
+Build the desktop application:
+```bash
+yarn build:desktop
+```
+
+Package the desktop application for distribution:
+```bash
+yarn package:desktop
+```
+
+The packaged application will be available in the `desktop/release` directory.
+
 ## Project Structure
 
 ```
@@ -132,6 +161,9 @@ AIAgents/
 │   ├── src/            # Source files
 │   ├── prisma/         # Database schema and migrations
 │   └── package.json    # Server dependencies
+├── desktop/             # Electron desktop application
+│   ├── electron/       # Electron main process code
+│   └── package.json    # Desktop dependencies
 ├── docker-compose.yml   # Docker configuration
-└── package.json        # Root package.json for running both services
+└── package.json        # Root package.json for running all services
 ```

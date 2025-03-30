@@ -1,0 +1,48 @@
+{
+  "name": "desktop",
+  "version": "1.0.0",
+  "main": "electron.js",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k \"yarn dev:vite\" \"yarn dev:electron\"",
+    "dev:vite": "cd ../client && yarn dev",
+    "dev:electron": "tsc && cross-env NODE_ENV=development electron .",
+    "build": "yarn build:vite && yarn build:electron",
+    "build:vite": "cd ../client && yarn build",
+    "build:electron": "tsc && electron-builder",
+    "package": "electron-builder"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^35.1.2",
+    "electron-builder": "^26.0.12",
+    "typescript": "^5.2.0",
+    "wait-on": "^8.0.3"
+  },
+  "build": {
+    "appId": "com.aiagent.app",
+    "productName": "AI Agent",
+    "files": [
+      "dist/**/*",
+      "../client/dist/**/*"
+    ],
+    "directories": {
+      "output": "release",
+      "buildResources": "resources"
+    },
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": ["dmg"]
+    },
+    "win": {
+      "target": ["nsis"]
+    },
+    "linux": {
+      "target": ["AppImage", "deb"]
+    },
+    "publish": null
+  }
+}

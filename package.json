@@ -4,13 +4,17 @@
   "private": true,
   "workspaces": [
     "client",
-    "server"
+    "server",
+    "desktop"
   ],
   "scripts": {
     "dev": "concurrently \"yarn dev:client\" \"yarn dev:server\"",
     "dev:client": "yarn workspace client dev",
     "dev:server": "yarn workspace server dev",
+    "dev:desktop": "yarn workspace desktop dev",
     "build": "yarn workspace client build && yarn workspace server build",
+    "build:desktop": "yarn workspace desktop build",
+    "package:desktop": "yarn workspace desktop package",
     "start": "yarn workspace server start"
   },
   "devDependencies": {
