@@ -6,10 +6,8 @@ import cors from "@fastify/cors";
 import ws from "@fastify/websocket";
 import { WebSocket } from "ws";
 import { SocketStream } from "@fastify/websocket";
-import type { Browser, Page, ConsoleMessage } from "playwright";
-import { chromium } from "playwright";
 import { Agent } from "./agent";
-import { Computer } from "./computer";
+import { RemoteComputer } from "./remoteComputer";
 import { toolsList } from "./tools";
 
 const server = fastify({
@@ -39,14 +37,11 @@ interface ChatMessage {
 
 // Interface for conversation session
 interface ConversationSession {
-  browser: Browser;
-  page: Page;
   agent: Agent;
-  computer: Computer;
+  computer: RemoteComputer;
   connectedClients: Set<WebSocket>;
   lastActivity: number;
   conversationHistory: any[];
-
 }
 
 // Map to store conversation sessions by conversationId
@@ -74,8 +69,8 @@ interface ChatUpdate {
   };
 }
 
-// Initialize a new browser session for a conversation
-async function initBrowserForConversation(conversationId: string): Promise<ConversationSession> {
+// Initialize a new session for a conversation
+async function initSessionForConversation(conversationId: string): Promise<ConversationSession> {
   // Check if session already exists
   if (conversationSessions.has(conversationId)) {
     console.log(`Found existing session for conversation: ${conversationId}`);
@@ -84,25 +79,14 @@ async function initBrowserForConversation(conversationId: string): Promise<Conve
     return session;
   }
   
-  console.log(`Creating new browser session for conversation: ${conversationId}`);
+  console.log(`Creating new session for conversation: ${conversationId}`);
 
-  const browser = await chromium.launch({
-    headless: false,
-  });
-
-  // Getting the default context to ensure the sessions are recorded
-  const context = await browser.newContext({
-    viewport: { width: 1280, height: 720 },
-  });
-  const page = await context.newPage();
-
-  // Navigate to bing.com
-  await page.goto("https://www.bing.com");
-
-  // Create Computer and Agent instances
-  const computer = new Computer([1280, 720], "browser", page);
+  // Create RemoteComputer and Agent instances
+  const computer = new RemoteComputer([1280, 720], "browser");
+  // Use type assertion since RemoteComputer implements the necessary functionality
+  // but doesn't need to fully implement the Computer interface
   const agent = new Agent(
-    computer,
+    computer as any, // Type assertion to satisfy TypeScript
     "computer-use-preview",
     toolsList,
     (message: string) => {
@@ -113,30 +97,12 @@ async function initBrowserForConversation(conversationId: string): Promise<Conve
 
   // Create new session
   const session: ConversationSession = {
-    browser,
-    page,
     agent,
     computer,
     connectedClients: new Set<WebSocket>(),
     lastActivity: Date.now(),
     conversationHistory: [],
   };
-
-  // Set up page event listeners
-  page.on("console", async (msg: ConsoleMessage) => {
-    broadcastToConversation(conversationId, {
-      type: "console",
-      data: { type: msg.type(), text: msg.text() },
-    });
-  });
-
-  page.on("load", async () => {
-    const screenshot = await page.screenshot({ type: "jpeg", quality: 80 });
-    broadcastToConversation(conversationId, {
-      type: "screenshot",
-      data: { image: screenshot.toString("base64") },
-    });
-  });
 
   // Store the session
   conversationSessions.set(conversationId, session);
@@ -149,10 +115,6 @@ function cleanupInactiveSessions() {
   for (const [conversationId, session] of conversationSessions.entries()) {
     if (now - session.lastActivity > SESSION_TIMEOUT_MS) {
       console.log(`Cleaning up inactive session: ${conversationId}`);
-      // Close browser
-      session.browser.close().catch(err => {
-        console.error(`Error closing browser for session ${conversationId}:`, err);
-      });
       // Remove from map
       conversationSessions.delete(conversationId);
     }
@@ -247,115 +209,97 @@ server.register(async function (server: FastifyInstance) {
       }
       
       console.log({conversationId})
-      // Initialize or get browser session for this conversation
-      const session = await initBrowserForConversation(conversationId);
+      // Initialize or get session for this conversation
+      const session = await initSessionForConversation(conversationId);
       session.connectedClients.add(connection.socket);
       
-      // Send initial screenshot using CDP for better performance
-      try {
-        // Create a CDP session for faster screenshots
-        const client = await session.browser.contexts()[0].newCDPSession(session.page);
-        
-        // Capture the screenshot using CDP
-        const { data } = await client.send("Page.captureScreenshot", {
-          format: "jpeg",
-          quality: 80,
-        });
-        
-        connection.socket.send(
-          JSON.stringify({
-            type: "screenshot",
-            data: { image: data },
-          })
-        );
-      } catch (error) {
-        console.error("Error taking initial CDP screenshot:", error);
-        // Fallback to regular screenshot if CDP fails
-        const screenshot = await session.page.screenshot({ type: "jpeg", quality: 80 });
-        connection.socket.send(
-          JSON.stringify({
-            type: "screenshot",
-            data: { image: screenshot.toString("base64") },
-          })
-        );
-      }
+      // Set the WebSocket for the RemoteComputer
+      session.computer.setWebSocket(connection.socket);
       
-      // Send current page info
-      const pageUrl = session.page.url();
-      const title = await session.page.title();
-      connection.socket.send(
-        JSON.stringify({
-          type: "page",
-          data: { url: pageUrl, title },
-        })
-      );
+      // Request an initial screenshot from the desktop browser
+      connection.socket.send(JSON.stringify({
+        type: "computer-action",
+        action: "takeScreenshot",
+        params: {},
+        id: "initial-screenshot-" + Date.now()
+      }));
+      
+      // Request current URL from the desktop browser
+      connection.socket.send(JSON.stringify({
+        type: "computer-action",
+        action: "getCurrentUrl",
+        params: {},
+        id: "initial-url-" + Date.now()
+      }));
 
-      // Create a CDP session for faster screenshots
-      let cdpClient: any = null;
-      try {
-        cdpClient = await session.browser.contexts()[0].newCDPSession(session.page);
-      } catch (error) {
-        console.error("Error creating CDP session:", error);
-      }
-      
-      // Set up periodic screenshots using CDP for better performance
-      const screenshotInterval = setInterval(async () => {
-        if (session.page && connection.socket.readyState === WebSocket.OPEN) {
-          try {
-            if (cdpClient) {
-              // Use CDP for faster screenshots
-              const { data } = await cdpClient.send("Page.captureScreenshot", {
-                format: "jpeg",
-                quality: 80,
-              });
-              
-              connection.socket.send(
-                JSON.stringify({
-                  type: "screenshot",
-                  data: { image: data },
-                })
-              );
-            } else {
-              // Fallback to regular screenshot if CDP is not available
-              const screenshot = await session.page.screenshot({
-                type: "jpeg",
-                quality: 80,
-              });
-              connection.socket.send(
-                JSON.stringify({
-                  type: "screenshot",
-                  data: { image: screenshot.toString("base64") },
-                })
-              );
-            }
-          } catch (error) {
-            console.error("Error taking periodic screenshot:", error);
-          }
+      // Set up periodic screenshot requests
+      const screenshotInterval = setInterval(() => {
+        if (connection.socket.readyState === WebSocket.OPEN) {
+          connection.socket.send(JSON.stringify({
+            type: "computer-action",
+            action: "takeScreenshot",
+            params: {},
+            id: "periodic-screenshot-" + Date.now()
+          }));
         }
-      }, 1000); // Send screenshot every second
+      }, 5000); // Request screenshot every 5 seconds
 
       connection.socket.on("message", async (message: Buffer) => {
         try {
-          const update = JSON.parse(message.toString()) as BrowserUpdate;
-          if (update.type === "page" && update.data.url) {
-            await session.page.goto(update.data.url);
+          const data = JSON.parse(message.toString());
+          console.log(`Received message from client for conversation ${conversationId}:`, data.type);
+          
+          // Handle desktop browser messages
+          if (data.type === 'desktop-browser') {
+            // Update session activity timestamp
+            session.lastActivity = Date.now();
+            
+            // Process different desktop browser actions
+            switch (data.action) {
+              case 'screenshot':
+                // Screenshot received from desktop browser
+                broadcastToConversation(conversationId, {
+                  type: "screenshot",
+                  data: { image: data.data.image },
+                });
+                break;
+                
+              case 'console':
+                // Console message received from desktop browser
+                broadcastToConversation(conversationId, {
+                  type: "console",
+                  data: data.data,
+                });
+                break;
+                
+              case 'status':
+                // Status update received from desktop browser
+                console.log(`Desktop browser status for conversation ${conversationId}: ${data.data.status}`);
+                break;
+                
+              case 'url':
+                // URL update received from desktop browser
+                console.log(`Desktop browser URL for conversation ${conversationId}: ${data.data.url}`);
+                break;
+                
+              case 'connect':
+                // Initial connection message
+                console.log(`Desktop browser connected for conversation ${conversationId}`);
+                break;
+                
+              case 'heartbeat':
+                // Heartbeat message
+                // Just update the lastActivity timestamp, which we already did
+                break;
+            }
           }
         } catch (error) {
           console.error("Failed to process WebSocket message:", error);
         }
       });
 
-      connection.socket.on("close", async () => {
+      connection.socket.on("close", () => {
         console.log("Client disconnected from browser WebSocket");
-        
-        // Clean up CDP client if it exists
-        if (cdpClient) {
-          try {
-            await cdpClient.detach();
-          } catch (error) {
-            console.error("Error detaching CDP client:", error);
-          }
-        }
         session.connectedClients.delete(connection.socket);
         clearInterval(screenshotInterval);
       });
@@ -365,13 +309,8 @@ server.register(async function (server: FastifyInstance) {
 
 // Cleanup on server shutdown
 process.on("SIGTERM", async () => {
-  // Close all browser instances
-  for (const [conversationId, session] of conversationSessions.entries()) {
-    console.log(`Closing browser for session ${conversationId}`);
-    await session.browser.close().catch(err => {
-      console.error(`Error closing browser for session ${conversationId}:`, err);
-    });
-  }
+  // Close the server
+  await server.close();
   process.exit(0);
 });
 
@@ -390,7 +329,7 @@ server.post<{ Body: ChatMessage }>("/chat", async (request, reply) => {
     }
     
     // Get or initialize the session for this conversation
-    const session = await initBrowserForConversation(conversationId);
+    const session = await initSessionForConversation(conversationId);
     session.lastActivity = Date.now();
     
     // Create a conversation history with the user message

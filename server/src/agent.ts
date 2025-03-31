@@ -53,6 +53,7 @@ export function checkBlocklistedUrl(url: string): void {
 
 // Import ComputerTool from OpenAI SDK
 import { ComputerTool } from "openai/resources/responses/responses";
+import { RemoteComputer } from "./remoteComputer";
 
 // Define message types for agent communication
 export type AgentMessageType =
@@ -154,7 +155,7 @@ type ResponseItem =
 
 export class Agent {
   model: string;
-  computer: Computer;
+  computer: RemoteComputer;
   tools: Array<Tool | ComputerPreviewTool>;
   printSteps: boolean;
   debug: boolean;
@@ -163,7 +164,7 @@ export class Agent {
   isInterrupted: boolean;
 
   constructor(
-    computer: Computer,
+    computer: RemoteComputer,
     model: string = "computer-use-preview",
     tools: Array<Tool> = [],
     acknowledgeSafetyCheckCallback: (message: string) => boolean = () => false
@@ -210,9 +211,9 @@ export class Agent {
         messageCallback?.(`${name}(${JSON.stringify(args)})`, "action");
       }
 
-      if (this.computer.page) {
+      if (this.computer) {
         const result = await tools[name].handler(args, {
-          page: this.computer.page,
+          computer: this.computer,
         });
         return [
           {

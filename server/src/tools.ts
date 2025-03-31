@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { Tool } from "openai/resources/responses/responses";
 import { Page } from "playwright";
+import { RemoteComputer } from "./remoteComputer";
 
 
 type Success = "success" | "error";
@@ -9,7 +10,7 @@ export const tools: Record<
   string,
   {
     spec: Tool;
-    handler: (args: any, opts: { page: Page }) => Promise<Success>;
+    handler: (args: any, opts: { computer: RemoteComputer }) => Promise<Success>;
   }
 > = {
   goto: {
@@ -29,25 +30,17 @@ export const tools: Record<
       strict: true,
       type: "function"
     },
-    handler: async ({ url }: { url: string }, { page }: { page: Page }) => {
-      if (!page) {
-        throw new Error("Page object is required for navigation");
+    handler: async ({ url }: { url: string }, { computer }: { computer: RemoteComputer }) => {
+      if (!computer) {
+        throw new Error("Computer object is required for navigation");
       }
       try {
         // Increase timeout to 60 seconds and set waitUntil to 'domcontentloaded' instead of 'load'
         // This will make the navigation complete once the DOM is ready, without waiting for all resources
-        await page.goto(url, { 
-          timeout: 60000, 
-          waitUntil: 'domcontentloaded' 
-        });
+        await computer.goto(url);
         return "success";
       } catch (error) {
         console.error(`Navigation error to ${url}:`, error);
-        // Return partial success if we at least got to the domain
-        if (page.url().includes(new URL(url).hostname)) {
-          console.log("Page partially loaded, returning success");
-          return "success";
-        }
         return "error"; // Return error instead of re-throwing
       }
     },
