@@ -58,7 +58,7 @@ export class RemoteComputer {
     ws.on('message', (data: Buffer) => {
       try {
         const message = JSON.parse(data.toString());
-        console.log({message})
+        console.log(message.action, message.type)
         
         // Handle action responses
         if (message.type === 'desktop-browser') {
@@ -74,17 +74,19 @@ export class RemoteComputer {
               const pendingAction = this.pendingActions.get(message.id);
               if (pendingAction) {
                 clearTimeout(pendingAction.timeout);
-                pendingAction.resolve(message.result);
+                
+                if (message.data && message.data.success) {
+                  // Successful action, resolve with the result
+                  pendingAction.resolve(message.data.result);
+                } else {
+                  // Action failed, reject with the error
+                  pendingAction.reject(new Error(message.data?.error || 'Unknown error'));
+                }
+                
                 this.pendingActions.delete(message.id);
-              }
-              break;
-            case 'action-error':
-              // Reject pending action promise
-              const failedAction = this.pendingActions.get(message.id);
-              if (failedAction) {
-                clearTimeout(failedAction.timeout);
-                failedAction.reject(new Error(message.error));
-                this.pendingActions.delete(message.id);
+                console.log(`Resolved action ${message.id}`);
+              } else {
+                console.warn(`Received response for unknown action ID: ${message.id}`);
               }
               break;
           }
@@ -203,25 +205,51 @@ export class RemoteComputer {
   async screenshot(): Promise<string> {
     console.log("Action: screenshot");
     
-    // Request a fresh screenshot
-    await this.sendAction('takeScreenshot', {});
-    
-    // Return the last received screenshot
-    if (!this.lastScreenshot) {
-      throw new Error("No screenshot available");
+    try {
+      // Request a fresh screenshot and wait for the response
+      await this.sendAction('takeScreenshot', {});
+      
+      // Return the last received screenshot
+      if (!this.lastScreenshot) {
+        throw new Error("No screenshot available");
+      }
+      
+      return this.lastScreenshot;
+    } catch (error) {
+      console.error("Screenshot error:", error);
+      // Return the last screenshot we have if available, otherwise rethrow
+      if (this.lastScreenshot) {
+        return this.lastScreenshot;
+      }
+      throw error;
     }
-    
-    return this.lastScreenshot;
   }
 
   async get_current_url(): Promise<string> {
-    await this.sendAction('getCurrentUrl', {});
-    
-    if (!this.currentUrl) {
-      throw new Error("No URL available");
+    try {
+      // Request the current URL and wait for the response
+      const result = await this.sendAction('getCurrentUrl', {});
+      
+      // If the action returns a direct result, use it
+      if (typeof result === 'string') {
+        this.currentUrl = result;
+        return result;
+      }
+      
+      // Otherwise use the stored URL from WebSocket updates
+      if (!this.currentUrl) {
+        throw new Error("Current URL not available");
+      }
+      
+      return this.currentUrl;
+    } catch (error) {
+      console.error("Get current URL error:", error);
+      // Return the last known URL if available, otherwise rethrow
+      if (this.currentUrl) {
+        return this.currentUrl;
+      }
+      throw error;
     }
-    
-    return this.currentUrl;
   }
 
   async goto(url: string): Promise<void> {
