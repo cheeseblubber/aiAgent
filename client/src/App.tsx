@@ -2,11 +2,18 @@
 
 import ChatComponent from './components/Chat'
 import BrowserConnections from './components/BrowserConnections'
+import DesktopBrowser from './components/DesktopBrowser'
 
 import { ConversationProvider } from './context/ConversationContext'
+import { useEffect, useState } from 'react'
 
 function App() {
+  const [isElectron, setIsElectron] = useState(false);
 
+  useEffect(() => {
+    // Check if running in Electron
+    setIsElectron('electronAPI' in window);
+  }, []);
 
   return (
     <ConversationProvider>
@@ -15,9 +22,8 @@ function App() {
           <ChatComponent />
         </div>
         <div className="flex-1 flex flex-col bg-white">
-
           <div className="flex-1">
-            <BrowserConnections />
+            {isElectron ? <DesktopBrowser /> : <BrowserConnections />}
           </div>
         </div>
       </div>

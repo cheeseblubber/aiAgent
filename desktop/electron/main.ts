@@ -1,9 +1,13 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { BrowserManager } from './browserManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Global reference to the browser manager
+let browserManager: BrowserManager | null = null;
 
 // This is the main entry point for the Electron application
 
@@ -38,6 +42,9 @@ const createWindow = () => {
     // Send a response back to the renderer
     mainWindow.webContents.send('fromMain', 'Message received by main process');
   });
+
+  // Initialize the browser manager
+  browserManager = new BrowserManager(mainWindow);
 };
 
 // This method will be called when Electron has finished initialization
@@ -54,6 +61,15 @@ app.whenReady().then(() => {
 // Quit when all windows are closed, except on macOS
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
+
+// Clean up browser resources before quitting
+app.on('before-quit', async (event) => {
+  if (browserManager) {
+    event.preventDefault();
+    await browserManager.cleanup();
     app.quit();
   }
 });

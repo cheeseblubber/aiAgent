@@ -14,6 +14,10 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     rollupOptions: {
+      external: ['electron'],
+      output: {
+        format: 'cjs', // Use CommonJS for Electron preload
+      },
       input: {
         main: resolve(__dirname, 'index.html'),
       },
