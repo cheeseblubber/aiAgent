@@ -6,8 +6,8 @@ import { resolve } from 'path'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
-    react(),
-    tailwindcss()
+    react(), 
+    tailwindcss() as any
   ],
   base: process.env.ELECTRON_RENDERER_URL ? './' : '/',
   build: {
@@ -21,5 +21,10 @@ export default defineConfig({
   },
   server: {
     host: true,
+  },
+  resolve: {
+    alias: {
+      "@": resolve(__dirname, "./src"),
+    },
   },
 })

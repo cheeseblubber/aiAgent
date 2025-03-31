@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { sendChatMessage } from '../api'
 import { useConversation } from '../context/ConversationContext'
 import { XCircleIcon } from '@heroicons/react/24/solid'
+import { Button } from "@/components/ui/button"
 
 interface Message {
   content: string
@@ -164,7 +165,7 @@ function ChatComponent() {
           </div>
         ))}
       </div>
-      <form onSubmit={handleSubmit} className="flex p-5 gap-2.5 bg-white border-t border-gray-200">
+      <form onSubmit={handleSubmit} className="flex p-5 gap-2.5 bg-white border-t border-gray-200 items-center">
         <input
           type="text"
           value={input}
@@ -174,21 +175,23 @@ function ChatComponent() {
           className="flex-1 p-2.5 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
         {isAgentRunning ? (
-          <button
+          <Button
             type="button"
             onClick={handleInterrupt}
-            className="px-5 py-2.5 bg-red-500 text-white rounded-lg text-base cursor-pointer transition-colors hover:bg-red-700 flex items-center gap-2"
+            variant="destructive"
+            className="flex items-center gap-2 h-10"
           >
             <XCircleIcon className="h-5 w-5" />
             Stop
-          </button>
+          </Button>
         ) : (
-          <button
+          <Button
             type="submit"
-            className="px-5 py-2.5 bg-blue-500 text-white rounded-lg text-base cursor-pointer transition-colors hover:bg-blue-700"
+            variant="default"
+            className="h-10"
           >
             Send
-          </button>
+          </Button>
         )}
       </form>
     </div>

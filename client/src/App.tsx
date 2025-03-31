@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { Button } from "@/components/ui/button"
+
 import ChatComponent from './components/Chat'
 import BrowserConnections from './components/BrowserConnections'
 import BrowserBaseView from './components/BrowserBaseView'
@@ -15,18 +17,20 @@ function App() {
         </div>
         <div className="flex-1 flex flex-col bg-white">
           <div className="flex border-b border-gray-200">
-            <button
-              className={`px-4 py-2 font-medium ${activeTab === 'preview' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-600 hover:text-gray-800'}`}
+            <Button
+              variant={activeTab === 'preview' ? 'default' : 'ghost'}
+              className={`rounded-none ${activeTab === 'preview' ? 'border-b-2 border-primary' : ''}`}
               onClick={() => setActiveTab('preview')}
             >
               Browser Preview
-            </button>
-            <button
-              className={`px-4 py-2 font-medium ${activeTab === 'liveview' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-600 hover:text-gray-800'}`}
+            </Button>
+            <Button
+              variant={activeTab === 'liveview' ? 'default' : 'ghost'}
+              className={`rounded-none ${activeTab === 'liveview' ? 'border-b-2 border-primary' : ''}`}
               onClick={() => setActiveTab('liveview')}
             >
               Live View
-            </button>
+            </Button>
           </div>
           <div className="flex-1">
             {activeTab === 'preview' ? (
