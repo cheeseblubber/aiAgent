@@ -24,7 +24,7 @@ const DesktopBrowserBridge: React.FC<DesktopBrowserBridgeProps> = () => {
   const handleScreenshotUpdate = useCallback((base64Image: string) => {
     setScreenshot(base64Image);
     lastScreenshotRef.current = base64Image;
-    
+
     // Send the screenshot to the server via WebSocket
     if (webSocket && wsStatus === 'connected') {
       webSocket.send(JSON.stringify({
@@ -39,12 +39,12 @@ const DesktopBrowserBridge: React.FC<DesktopBrowserBridgeProps> = () => {
   const handleConsoleMessage = useCallback((message: any) => {
     // Validate and normalize the message format
     const consoleMessage: BrowserConsoleMessage = {
-      type: (typeof message.type === 'string' && 
-            ['log', 'info', 'warn', 'error'].includes(message.type)) ? 
-            message.type as "log" | "info" | "warn" | "error" : "log",
+      type: (typeof message.type === 'string' &&
+        ['log', 'info', 'warn', 'error'].includes(message.type)) ?
+        message.type as "log" | "info" | "warn" | "error" : "log",
       text: typeof message.text === 'string' ? message.text : String(message.text || '')
     };
-    
+
     // Send console messages to the server via WebSocket
     if (webSocket && wsStatus === 'connected') {
       webSocket.send(JSON.stringify({
@@ -58,7 +58,7 @@ const DesktopBrowserBridge: React.FC<DesktopBrowserBridgeProps> = () => {
   // Handle browser status changes
   const handleStatusChange = useCallback((status: BrowserStatus) => {
     setBrowserStatus(status);
-    
+
     // Send status updates to the server via WebSocket
     if (webSocket && wsStatus === 'connected') {
       webSocket.send(JSON.stringify({
@@ -88,13 +88,13 @@ const DesktopBrowserBridge: React.FC<DesktopBrowserBridgeProps> = () => {
   const handleAction = useCallback(async (id: string, actionName: string, actionFn: () => Promise<void>, takeScreenshotAfter = false) => {
     try {
       await actionFn();
-      
+
       // Take screenshot after action if requested
       if (takeScreenshotAfter) {
         const screenshot = await window.electronAPI.takeScreenshot();
         if (screenshot) handleScreenshotUpdate(screenshot);
       }
-      
+
       // Send success response
       sendActionResponse(id, true, `${actionName} performed successfully`);
     } catch (error: any) {
@@ -110,7 +110,7 @@ const DesktopBrowserBridge: React.FC<DesktopBrowserBridgeProps> = () => {
     const handleMessage = async (event: MessageEvent) => {
       try {
         const data = JSON.parse(event.data);
-        
+
         console.log('Received message:', data);
         // Handle computer action commands from the server
         if (data.type === 'computer-action' && data.action) {
@@ -119,87 +119,87 @@ const DesktopBrowserBridge: React.FC<DesktopBrowserBridgeProps> = () => {
             case 'click':
               await handleAction(data.id, 'Click', async () => {
                 await window.electronAPI.click(
-                  data.params.x, 
-                  data.params.y, 
+                  data.params.x,
+                  data.params.y,
                   data.params.button || 'left'
                 );
               }, true);
               break;
-              
+
             case 'doubleClick':
               await handleAction(data.id, 'Double-click', async () => {
                 await window.electronAPI.doubleClick(
-                  data.params.x, 
+                  data.params.x,
                   data.params.y
                 );
               }, true);
               break;
-              
+
             case 'move':
               await handleAction(data.id, 'Move', async () => {
                 await window.electronAPI.move(
-                  data.params.x, 
+                  data.params.x,
                   data.params.y
                 );
               }, false);
               break;
-              
+
             case 'drag':
               await handleAction(data.id, 'Drag', async () => {
                 await window.electronAPI.drag(data.params.path);
               }, true);
               break;
-              
+
             case 'scroll':
               await handleAction(data.id, 'Scroll', async () => {
                 await window.electronAPI.scroll(
-                  data.params.x, 
-                  data.params.y, 
-                  data.params.scrollX, 
+                  data.params.x,
+                  data.params.y,
+                  data.params.scrollX,
                   data.params.scrollY
                 );
               }, true);
               break;
-              
+
             case 'keypress':
               await handleAction(data.id, 'Keypress', async () => {
                 await window.electronAPI.keypress(data.params.keys);
               }, true);
               break;
-              
+
             case 'type':
               await handleAction(data.id, 'Type', async () => {
                 await window.electronAPI.type(data.params.text);
               }, true);
               break;
-              
+
             case 'wait':
               await handleAction(data.id, 'Wait', async () => {
                 await window.electronAPI.wait(data.params.ms);
               }, false);
               break;
-              
+
             case 'navigate':
               await handleAction(data.id, 'Navigation', async () => {
                 await window.electronAPI.navigate(data.params.url);
                 // URL and screenshot will be updated via events
               }, false);
               break;
-              
+
             case 'back':
               await handleAction(data.id, 'Back navigation', async () => {
                 await window.electronAPI.goBack();
                 // URL and screenshot will be updated via events
               }, false);
               break;
-              
+
             case 'forward':
               await handleAction(data.id, 'Forward navigation', async () => {
                 await window.electronAPI.goForward();
                 // URL and screenshot will be updated via events
               }, false);
               break;
-              
+
             case 'getCurrentUrl':
               await handleAction(data.id, 'Get current URL', async () => {
                 const url = await window.electronAPI.getCurrentUrl();
@@ -213,7 +213,7 @@ const DesktopBrowserBridge: React.FC<DesktopBrowserBridgeProps> = () => {
                 }
               }, false);
               break;
-              
+
             case 'takeScreenshot':
               console.log('Taking screenshot...');
               await handleAction(data.id, 'Screenshot', async () => {
@@ -225,7 +225,7 @@ const DesktopBrowserBridge: React.FC<DesktopBrowserBridgeProps> = () => {
                 }
               }, false);
               break;
-              
+
             default:
               console.warn(`Unknown action: ${data.action}`);
               if (data.id) {
