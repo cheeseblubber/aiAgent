@@ -9,3 +9,4 @@
 9. I use yarn
 10. For new client side api refer to api folder and follow pattern in index.ts
 11. folder structure is root -> client, server. root will run yarn dev which wil start both client and server
+12. We use shadcn ui components inwith tailwind 
