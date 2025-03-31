@@ -5,7 +5,7 @@ export const API_ENDPOINTS = {
   chat: `${API_BASE}/chat`,
   browserWs: `${WS_BASE}/browser`,
   conversation: `${API_BASE}/conversation`,
-  liveView: (conversationId: string) => `${API_BASE}/conversation/${conversationId}/liveview`,
+
   interrupt: (conversationId: string) => `${API_BASE}/interrupt/${conversationId}`,
 } as const
 
@@ -89,38 +89,7 @@ export const interruptAgent = async (conversationId: string): Promise<ChatRespon
   }
 }
 
-// Interface for the live view link response
-interface LiveViewResponse {
-  success: boolean;
-  liveViewLink?: string;
-  error?: string;
-}
 
-// Function to fetch the BrowserBase live view link for a conversation
-export const fetchLiveViewLink = async (conversationId: string): Promise<LiveViewResponse> => {
-  try {
-    const response = await fetch(API_ENDPOINTS.liveView(conversationId), {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-
-    const data = await response.json()
-
-    if (!response.ok || !data.success) {
-      throw new Error(data.error || 'Failed to fetch live view link')
-    }
-
-    return data
-  } catch (error) {
-    console.error('Error fetching live view link:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    }
-  }
-}
 
 // WebSocket API functions
 export const createWebSocket = (url: string, conversationId: string): WebSocket => {

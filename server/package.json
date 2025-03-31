@@ -9,7 +9,6 @@
     "start": "node dist/server.js"
   },
   "dependencies": {
-    "@browserbasehq/sdk": "^2.4.0",
     "@fastify/cors": "^8.3.0",
     "@fastify/websocket": "^8.2.0",
     "@prisma/client": "^5.0.0",
