@@ -20,6 +20,7 @@ const DesktopBrowserBridge: React.FC<DesktopBrowserBridgeProps> = () => {
   const [browserStatus, setBrowserStatus] = useState<'initializing' | 'ready' | 'closed' | 'error'>('closed');
   const [currentUrl, setCurrentUrl] = useState<string>('');
   const [isNavigating, setIsNavigating] = useState<boolean>(false);
+  const [isInitializing, setIsInitializing] = useState<boolean>(false);
   const lastScreenshotRef = useRef<string | null>(null);
 
   // Handle screenshot updates from the desktop browser
@@ -250,18 +251,23 @@ const DesktopBrowserBridge: React.FC<DesktopBrowserBridgeProps> = () => {
 
   // Initialize the desktop browser when the component mounts
   useEffect(() => {
-    // Check if the browser is already initialized
-    if (browserStatus === 'closed') {
+    // Check if the browser is already initialized or initializing
+    if (browserStatus === 'closed' && !isInitializing) {
+      // Set initializing flag
+      setIsInitializing(true);
+
       // Initialize the browser
       window.electronAPI.initBrowser()
         .then(() => {
           console.log('Browser initialized');
           // Set initial status
           handleStatusChange('ready');
+          setIsInitializing(false);
         })
         .catch((error: any) => {
           console.error('Error initializing browser:', error);
           handleStatusChange('error');
+          setIsInitializing(false);
         });
     }
 
@@ -272,7 +278,7 @@ const DesktopBrowserBridge: React.FC<DesktopBrowserBridgeProps> = () => {
       // or when the app is closed
       console.log('DesktopBrowserBridge component unmounting');
     };
-  }, [browserStatus, handleStatusChange]);
+  }, [browserStatus, handleStatusChange, isInitializing]);
 
   // Take screenshot
   const takeScreenshot = useCallback(async () => {
@@ -288,20 +294,27 @@ const DesktopBrowserBridge: React.FC<DesktopBrowserBridgeProps> = () => {
 
   // Browser interaction methods
   const initBrowser = useCallback(async () => {
+    // Prevent multiple initialization attempts
+    if (browserStatus !== 'closed' || isInitializing) {
+      console.log('Browser is already initialized or initializing');
+      return;
+    }
+
     try {
+      setIsInitializing(true);
       setBrowserStatus('initializing');
-      
+
       const success = await window.electronAPI.initBrowser();
-      
+
       if (success) {
         setBrowserStatus('ready');
-        
+
         // Get the current URL
         const url = await window.electronAPI.getCurrentUrl();
         if (url) {
           setCurrentUrl(url);
         }
-        
+
         // Take a screenshot
         await takeScreenshot();
       } else {
@@ -310,25 +323,27 @@ const DesktopBrowserBridge: React.FC<DesktopBrowserBridgeProps> = () => {
     } catch (error) {
       console.error('Failed to initialize browser:', error);
       setBrowserStatus('error');
+    } finally {
+      setIsInitializing(false);
     }
-  }, [takeScreenshot]);
+  }, [takeScreenshot, browserStatus, isInitializing]);
 
   // Navigate to URL
   const navigate = useCallback(async (url: string) => {
     try {
       setIsNavigating(true);
-      
+
       await window.electronAPI.navigate(url);
-      
+
       // Update the current URL
       const newUrl = await window.electronAPI.getCurrentUrl();
       if (newUrl) {
         setCurrentUrl(newUrl);
       }
-      
+
       // Take a screenshot after navigation
       await takeScreenshot();
-      
+
       setIsNavigating(false);
     } catch (error) {
       console.error('Failed to navigate:', error);
@@ -341,16 +356,16 @@ const DesktopBrowserBridge: React.FC<DesktopBrowserBridgeProps> = () => {
     try {
       setIsNavigating(true);
       await window.electronAPI.goBack();
-      
+
       // Update the current URL
       const newUrl = await window.electronAPI.getCurrentUrl();
       if (newUrl) {
         setCurrentUrl(newUrl);
       }
-      
+
       // Take a screenshot after navigation
       await takeScreenshot();
-      
+
       setIsNavigating(false);
     } catch (error) {
       console.error('Failed to go back:', error);
@@ -363,16 +378,16 @@ const DesktopBrowserBridge: React.FC<DesktopBrowserBridgeProps> = () => {
     try {
       setIsNavigating(true);
       await window.electronAPI.goForward();
-      
+
       // Update the current URL
       const newUrl = await window.electronAPI.getCurrentUrl();
       if (newUrl) {
         setCurrentUrl(newUrl);
       }
-      
+
       // Take a screenshot after navigation
       await takeScreenshot();
-      
+
       setIsNavigating(false);
     } catch (error) {
       console.error('Failed to go forward:', error);
@@ -389,7 +404,7 @@ const DesktopBrowserBridge: React.FC<DesktopBrowserBridgeProps> = () => {
           handleScreenshotUpdate(data.image);
         }
       });
-      
+
       // Listen for console messages
       window.electronAPI.onConsole((data) => {
         if (data) {
