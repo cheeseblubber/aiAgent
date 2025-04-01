@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Button } from './ui/button';
 
 type BrowserStatus = 'initializing' | 'ready' | 'closed' | 'error';
 
@@ -54,22 +55,26 @@ const DesktopBrowser: React.FC<DesktopBrowserProps> = ({
     <div className="flex flex-col h-full">
       {/* Browser controls */}
       <div className="flex items-center p-2 bg-gray-100 border-b">
-        <button
+        <Button
           onClick={onGoBack}
           disabled={status !== 'ready' || isNavigating}
-          className="p-1 mr-1 rounded hover:bg-gray-200 disabled:opacity-50"
+          variant="ghost"
+          size="icon"
+          className="mr-1"
           aria-label="Go back"
         >
           ←
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={onGoForward}
           disabled={status !== 'ready' || isNavigating}
-          className="p-1 mr-2 rounded hover:bg-gray-200 disabled:opacity-50"
+          variant="ghost"
+          size="icon"
+          className="mr-2"
           aria-label="Go forward"
         >
           →
-        </button>
+        </Button>
         
         <form onSubmit={handleUrlSubmit} className="flex-1 flex">
           <input
@@ -80,35 +85,35 @@ const DesktopBrowser: React.FC<DesktopBrowserProps> = ({
             className="flex-1 px-2 py-1 border rounded"
             placeholder="Enter URL"
           />
-          <button
+          <Button
             type="submit"
             disabled={status !== 'ready' || isNavigating}
-            className="ml-2 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+            className="ml-2"
           >
             Go
-          </button>
+          </Button>
         </form>
         
-        <button
+        <Button
           onClick={onTakeScreenshot}
           disabled={status !== 'ready' || isNavigating}
-          className="ml-2 px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
+          variant="secondary"
+          className="ml-2"
           aria-label="Refresh"
         >
           ↻
-        </button>
+        </Button>
       </div>
       
       {/* Browser content */}
       <div className="flex-1 relative overflow-hidden">
         {status === 'closed' && (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-            <button
+            <Button
               onClick={onInitBrowser}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
             >
               Open Browser
-            </button>
+            </Button>
           </div>
         )}
         
@@ -121,12 +126,11 @@ const DesktopBrowser: React.FC<DesktopBrowserProps> = ({
         {status === 'error' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100">
             <p className="text-red-500 mb-2">Failed to initialize browser</p>
-            <button
+            <Button
               onClick={onInitBrowser}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
             >
               Retry
-            </button>
+            </Button>
           </div>
         )}
         
