@@ -1,6 +1,6 @@
 import { Page } from "playwright";
 
-export class Computer {
+export class ComputerPage {
   dimensions: [number, number];
   environment: "mac" | "windows" | "ubuntu" | "browser";
   page: Page;

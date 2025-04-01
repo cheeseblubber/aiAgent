@@ -6,7 +6,6 @@ import {
 } from "openai/resources/responses/responses";
 import { APIPromise } from "openai/core";
 import { tools } from "./tools";
-import { Computer } from "./computer";
 
 // Utility functions
 export function createResponse(

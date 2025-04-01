@@ -1,11 +1,11 @@
 import { BrowserWindow, ipcMain } from 'electron';
 import { chromium, Browser, BrowserContext, Page, ConsoleMessage } from 'playwright';
-import { Computer } from './computer.js';
+import { ComputerPage } from './computerPage.js';
 
 interface BrowserSession {
   browser: Browser;
   page: Page;
-  computer: Computer;
+  computer: ComputerPage;
   lastActivity: number;
 }
 
@@ -113,7 +113,7 @@ export class BrowserManager {
       await page.goto('https://www.bing.com');
 
       // Create Computer instance
-      const computer = new Computer([1280, 720], 'browser', page);
+      const computer = new ComputerPage([1280, 720], 'browser', page);
 
       // Create new session
       this.session = {
