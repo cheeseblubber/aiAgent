@@ -18,6 +18,8 @@ const DesktopBrowserBridge: React.FC<DesktopBrowserBridgeProps> = () => {
   // Track the current screenshot but don't need to display it directly
   const [_, setScreenshot] = useState<string | null>(null);
   const [browserStatus, setBrowserStatus] = useState<'initializing' | 'ready' | 'closed' | 'error'>('closed');
+  const [currentUrl, setCurrentUrl] = useState<string>('');
+  const [isNavigating, setIsNavigating] = useState<boolean>(false);
   const lastScreenshotRef = useRef<string | null>(null);
 
   // Handle screenshot updates from the desktop browser
@@ -272,13 +274,144 @@ const DesktopBrowserBridge: React.FC<DesktopBrowserBridgeProps> = () => {
     };
   }, [browserStatus, handleStatusChange]);
 
+  // Take screenshot
+  const takeScreenshot = useCallback(async () => {
+    try {
+      const base64Image = await window.electronAPI.takeScreenshot();
+      if (base64Image) {
+        handleScreenshotUpdate(base64Image);
+      }
+    } catch (error) {
+      console.error('Failed to take screenshot:', error);
+    }
+  }, [handleScreenshotUpdate]);
+
+  // Browser interaction methods
+  const initBrowser = useCallback(async () => {
+    try {
+      setBrowserStatus('initializing');
+      
+      const success = await window.electronAPI.initBrowser();
+      
+      if (success) {
+        setBrowserStatus('ready');
+        
+        // Get the current URL
+        const url = await window.electronAPI.getCurrentUrl();
+        if (url) {
+          setCurrentUrl(url);
+        }
+        
+        // Take a screenshot
+        await takeScreenshot();
+      } else {
+        setBrowserStatus('error');
+      }
+    } catch (error) {
+      console.error('Failed to initialize browser:', error);
+      setBrowserStatus('error');
+    }
+  }, [takeScreenshot]);
+
+  // Navigate to URL
+  const navigate = useCallback(async (url: string) => {
+    try {
+      setIsNavigating(true);
+      
+      await window.electronAPI.navigate(url);
+      
+      // Update the current URL
+      const newUrl = await window.electronAPI.getCurrentUrl();
+      if (newUrl) {
+        setCurrentUrl(newUrl);
+      }
+      
+      // Take a screenshot after navigation
+      await takeScreenshot();
+      
+      setIsNavigating(false);
+    } catch (error) {
+      console.error('Failed to navigate:', error);
+      setIsNavigating(false);
+    }
+  }, [takeScreenshot]);
+
+  // Go back
+  const goBack = useCallback(async () => {
+    try {
+      setIsNavigating(true);
+      await window.electronAPI.goBack();
+      
+      // Update the current URL
+      const newUrl = await window.electronAPI.getCurrentUrl();
+      if (newUrl) {
+        setCurrentUrl(newUrl);
+      }
+      
+      // Take a screenshot after navigation
+      await takeScreenshot();
+      
+      setIsNavigating(false);
+    } catch (error) {
+      console.error('Failed to go back:', error);
+      setIsNavigating(false);
+    }
+  }, [takeScreenshot]);
+
+  // Go forward
+  const goForward = useCallback(async () => {
+    try {
+      setIsNavigating(true);
+      await window.electronAPI.goForward();
+      
+      // Update the current URL
+      const newUrl = await window.electronAPI.getCurrentUrl();
+      if (newUrl) {
+        setCurrentUrl(newUrl);
+      }
+      
+      // Take a screenshot after navigation
+      await takeScreenshot();
+      
+      setIsNavigating(false);
+    } catch (error) {
+      console.error('Failed to go forward:', error);
+      setIsNavigating(false);
+    }
+  }, [takeScreenshot]);
+
+  // Set up event listeners
+  useEffect(() => {
+    if (browserStatus === 'ready') {
+      // Listen for screenshot updates
+      window.electronAPI.onScreenshot((data) => {
+        if (data && data.image) {
+          handleScreenshotUpdate(data.image);
+        }
+      });
+      
+      // Listen for console messages
+      window.electronAPI.onConsole((data) => {
+        if (data) {
+          handleConsoleMessage(data);
+        }
+      });
+    }
+  }, [browserStatus, handleScreenshotUpdate, handleConsoleMessage]);
+
   // Render the desktop browser component
   return (
     <div className="desktop-browser-bridge">
       <DesktopBrowser
-        onScreenshotUpdate={handleScreenshotUpdate}
-        onConsoleMessage={handleConsoleMessage}
-        onStatusChange={handleStatusChange}
+        status={browserStatus}
+        screenshot={lastScreenshotRef.current}
+        currentUrl={currentUrl}
+        isNavigating={isNavigating}
+        onInitBrowser={initBrowser}
+        onNavigate={navigate}
+        onGoBack={goBack}
+        onGoForward={goForward}
+        onTakeScreenshot={takeScreenshot}
       />
     </div>
   );

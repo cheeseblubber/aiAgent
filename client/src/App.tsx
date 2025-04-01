@@ -2,7 +2,6 @@
 
 import ChatComponent from './components/Chat'
 import BrowserConnections from './components/BrowserConnections'
-import DesktopBrowser from './components/DesktopBrowser'
 import DesktopBrowserBridge from './components/DesktopBrowserBridge'
 
 import { ConversationProvider } from './context/ConversationContext'
@@ -25,10 +24,7 @@ function App() {
         <div className="flex-1 flex flex-col bg-white">
           <div className="flex-1">
             {isElectron ? (
-              <>
-                <DesktopBrowser />
-                <DesktopBrowserBridge />
-              </>
+              <DesktopBrowserBridge />
             ) : (
               <BrowserConnections />
             )}
