@@ -3,6 +3,8 @@
 import ChatComponent from './components/Chat'
 import BrowserConnections from './components/BrowserConnections'
 import DesktopBrowserBridge from './components/DesktopBrowserBridge'
+import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react'
+
 
 import { ConversationProvider } from './context/ConversationContext'
 import { useEffect, useState } from 'react'
@@ -16,22 +18,27 @@ function App() {
   }, []);
 
   return (
-    <ConversationProvider>
-      <div className="flex h-screen w-screen overflow-hidden">
-        <div className="flex-none w-2/5 border-r border-gray-200 bg-gray-50">
-          <ChatComponent />
-        </div>
-        <div className="flex-1 flex flex-col bg-white">
-          <div className="flex-1">
-            {isElectron ? (
-              <DesktopBrowserBridge />
-            ) : (
-              <BrowserConnections />
-            )}
+    <>
+      <header>
+
+      </header>
+      <ConversationProvider>
+        <div className="flex h-screen w-screen overflow-hidden">
+          <div className="flex-none w-2/5 border-r border-gray-200 bg-gray-50">
+            <ChatComponent />
+          </div>
+          <div className="flex-1 flex flex-col bg-white">
+            <div className="flex-1">
+              {isElectron ? (
+                <DesktopBrowserBridge />
+              ) : (
+                <BrowserConnections />
+              )}
+            </div>
           </div>
         </div>
-      </div>
-    </ConversationProvider>
+      </ConversationProvider>
+    </>
   )
 }
 
