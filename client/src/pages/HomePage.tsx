@@ -12,12 +12,12 @@ const HomePage = () => {
   }, []);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden">
-      <div className="flex-none w-2/5 border-r border-gray-200 bg-gray-50">
+    <div className="flex h-full w-full">
+      <div className="flex-none w-2/5 border-r border-gray-200 bg-gray-50 overflow-hidden">
         <ChatComponent />
       </div>
-      <div className="flex-1 flex flex-col bg-white">
-        <div className="flex-1">
+      <div className="flex-1 flex flex-col bg-white overflow-hidden">
+        <div className="flex-1 overflow-hidden">
           {isElectron ? (
             <DesktopBrowserBridge />
           ) : (
