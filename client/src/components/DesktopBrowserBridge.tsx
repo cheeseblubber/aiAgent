@@ -249,37 +249,6 @@ const DesktopBrowserBridge: React.FC<DesktopBrowserBridgeProps> = () => {
     };
   }, [webSocket, wsStatus, handleAction, sendActionResponse, handleScreenshotUpdate]);
 
-  // Initialize the desktop browser when the component mounts
-  useEffect(() => {
-    // Check if the browser is already initialized or initializing
-    if (browserStatus === 'closed' && !isInitializing) {
-      // Set initializing flag
-      setIsInitializing(true);
-
-      // Initialize the browser
-      window.electronAPI.initBrowser()
-        .then(() => {
-          console.log('Browser initialized');
-          // Set initial status
-          handleStatusChange('ready');
-          setIsInitializing(false);
-        })
-        .catch((error: any) => {
-          console.error('Error initializing browser:', error);
-          handleStatusChange('error');
-          setIsInitializing(false);
-        });
-    }
-
-    // Clean up when the component unmounts
-    return () => {
-      // Note: We don't need to explicitly close the browser
-      // The browser will be closed when the component unmounts
-      // or when the app is closed
-      console.log('DesktopBrowserBridge component unmounting');
-    };
-  }, [browserStatus, handleStatusChange, isInitializing]);
-
   // Take screenshot
   const takeScreenshot = useCallback(async () => {
     try {
@@ -305,33 +274,73 @@ const DesktopBrowserBridge: React.FC<DesktopBrowserBridgeProps> = () => {
     }
   }, [takeScreenshot]);
 
-  // Browser interaction methods
+  // Initialize the desktop browser when the component mounts
+  useEffect(() => {
+    // Only initialize if browser is closed and not already initializing
+    if (browserStatus === 'closed' && !isInitializing) {
+      // Set initializing flag
+      setIsInitializing(true);
+      console.log('Auto-initializing browser...');
+
+      // Initialize the browser
+      window.electronAPI.initBrowser()
+        .then(() => {
+          console.log('Browser auto-initialized successfully');
+          handleStatusChange('ready');
+
+          // Get the current URL and take screenshot
+          updateUrlAndTakeScreenshot()
+            .catch(error => console.error('Error updating URL/screenshot:', error));
+        })
+        .catch((error) => {
+          console.error('Error auto-initializing browser:', error);
+          handleStatusChange('error');
+        })
+        .finally(() => {
+          setIsInitializing(false);
+        });
+    }
+
+    // Clean up when the component unmounts
+    return () => {
+      // Note: We don't need to explicitly close the browser
+      // The browser will be closed when the component unmounts
+      // or when the app is closed
+      console.log('DesktopBrowserBridge component unmounting');
+    };
+  }, [browserStatus, handleStatusChange, isInitializing, updateUrlAndTakeScreenshot]);
+
+  // This method is kept for compatibility with the DesktopBrowser component
+  // but we're not using it for initialization anymore
   const initBrowser = useCallback(async () => {
-    // Prevent multiple initialization attempts
-    if (browserStatus !== 'closed' || isInitializing) {
-      console.log('Browser is already initialized or initializing');
+    // If browser is already initialized or initializing, just take a screenshot
+    if (browserStatus === 'ready') {
+      console.log('Browser already initialized, refreshing screenshot');
+      await updateUrlAndTakeScreenshot();
       return;
     }
 
-    try {
+    // If browser is in error state, attempt to reinitialize
+    if (browserStatus === 'error' && !isInitializing) {
+      console.log('Attempting to reinitialize browser after error');
       setIsInitializing(true);
       setBrowserStatus('initializing');
 
-      const success = await window.electronAPI.initBrowser();
+      try {
+        const success = await window.electronAPI.initBrowser();
 
-      if (success) {
-        setBrowserStatus('ready');
-
-        // Update URL and take screenshot
-        await updateUrlAndTakeScreenshot();
-      } else {
+        if (success) {
+          setBrowserStatus('ready');
+          await updateUrlAndTakeScreenshot();
+        } else {
+          setBrowserStatus('error');
+        }
+      } catch (error) {
+        console.error('Failed to reinitialize browser:', error);
         setBrowserStatus('error');
+      } finally {
+        setIsInitializing(false);
       }
-    } catch (error) {
-      console.error('Failed to initialize browser:', error);
-      setBrowserStatus('error');
-    } finally {
-      setIsInitializing(false);
     }
   }, [updateUrlAndTakeScreenshot, browserStatus, isInitializing]);
 

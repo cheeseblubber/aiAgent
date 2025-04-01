@@ -12,6 +12,7 @@ interface BrowserSession {
 export class BrowserManager {
   private mainWindow: BrowserWindow;
   private session: BrowserSession | null = null;
+  private isInitializing: boolean = false;
 
   constructor(mainWindow: BrowserWindow) {
     this.mainWindow = mainWindow;
@@ -81,12 +82,21 @@ export class BrowserManager {
 
   async initBrowser(): Promise<boolean> {
     try {
+      // Check if browser session already exists
       if (this.session) {
         console.log('Browser session already exists');
         this.session.lastActivity = Date.now();
         return true;
       }
-
+      
+      // Check if browser is already initializing
+      if (this.isInitializing) {
+        console.log('Browser initialization already in progress');
+        return true;
+      }
+      
+      // Set initializing flag
+      this.isInitializing = true;
       console.log('Creating new browser session');
 
       const browser = await chromium.launch({
@@ -132,6 +142,9 @@ export class BrowserManager {
     } catch (error) {
       console.error('Failed to initialize browser:', error);
       return false;
+    } finally {
+      // Reset initializing flag
+      this.isInitializing = false;
     }
   }
 
