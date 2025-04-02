@@ -70,7 +70,9 @@ interface ChatUpdate {
 }
 
 // Initialize a new session for a conversation
-async function findOrCreateSession(conversationId: string): Promise<ConversationSession> {
+async function findOrCreateSession(
+  conversationId: string
+): Promise<ConversationSession> {
   // Check if session already exists
   if (conversationSessions.has(conversationId)) {
     console.log(`Found existing session for conversation: ${conversationId}`);
@@ -78,7 +80,7 @@ async function findOrCreateSession(conversationId: string): Promise<Conversation
     session.lastActivity = Date.now();
     return session;
   }
-  
+
   console.log(`Creating new session for conversation: ${conversationId}`);
 
   // Create RemoteComputer and Agent instances
@@ -128,19 +130,25 @@ function interruptAgent(conversationId: string): boolean {
     console.log(`No session found for conversation: ${conversationId}`);
     return false;
   }
-  
+
   try {
     session.agent.interrupt();
     console.log(`Agent interrupted for conversation: ${conversationId}`);
     return true;
   } catch (error) {
-    console.error(`Error interrupting agent for conversation ${conversationId}:`, error);
+    console.error(
+      `Error interrupting agent for conversation ${conversationId}:`,
+      error
+    );
     return false;
   }
 }
 
 // Function to broadcast to clients in a specific conversation
-function broadcastToConversation(conversationId: string, update: BrowserUpdate) {
+function broadcastToConversation(
+  conversationId: string,
+  update: BrowserUpdate
+) {
   const session = conversationSessions.get(conversationId);
   if (!session) return;
 
@@ -153,7 +161,11 @@ function broadcastToConversation(conversationId: string, update: BrowserUpdate) 
 }
 
 // Function to broadcast chat messages to clients in a specific conversation
-function broadcastChatMessage(conversationId: string, content: string, messageType?: AgentMessageType) {
+function broadcastChatMessage(
+  conversationId: string,
+  content: string,
+  messageType?: AgentMessageType
+) {
   const session = conversationSessions.get(conversationId);
   if (!session) return;
 
@@ -177,8 +189,10 @@ function broadcastChatMessage(conversationId: string, content: string, messageTy
 // Add endpoint to get or create a conversation ID
 server.get("/conversation", async (request, reply) => {
   // Generate a new conversation ID
-  const conversationId = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER).toString();
-  
+  const conversationId = Math.floor(
+    Math.random() * Number.MAX_SAFE_INTEGER
+  ).toString();
+
   // Return the conversation ID
   return reply.code(200).send({
     success: true,
@@ -192,11 +206,11 @@ server.register(async function (server: FastifyInstance) {
     { websocket: true },
     async (connection: SocketStream, req) => {
       console.log("Client connected to browser WebSocket");
-      
+
       // Get conversation ID from query parameters
       const url = new URL(req.url, "http://localhost");
       const conversationId = url.searchParams.get("conversationId");
-      
+
       if (!conversationId) {
         connection.socket.send(
           JSON.stringify({
@@ -207,87 +221,102 @@ server.register(async function (server: FastifyInstance) {
         connection.socket.close();
         return;
       }
-      
-      console.log({conversationId})
+
+      console.log({ conversationId });
       // Initialize or get session for this conversation
       const session = await findOrCreateSession(conversationId);
       session.connectedClients.add(connection.socket);
-      
+
       // Set the WebSocket for the RemoteComputer
       session.computer.setWebSocket(connection.socket);
-      
+
       // Request an initial screenshot from the desktop browser
-      connection.socket.send(JSON.stringify({
-        type: "computer-action",
-        action: "takeScreenshot",
-        params: {},
-        id: "initial-screenshot-" + Date.now()
-      }));
-      
+      connection.socket.send(
+        JSON.stringify({
+          type: "computer-action",
+          action: "takeScreenshot",
+          params: {},
+          id: "initial-screenshot-" + Date.now(),
+        })
+      );
+
       // Request current URL from the desktop browser
-      connection.socket.send(JSON.stringify({
-        type: "computer-action",
-        action: "getCurrentUrl",
-        params: {},
-        id: "initial-url-" + Date.now()
-      }));
+      connection.socket.send(
+        JSON.stringify({
+          type: "computer-action",
+          action: "getCurrentUrl",
+          params: {},
+          id: "initial-url-" + Date.now(),
+        })
+      );
 
       // Set up periodic screenshot requests
       const screenshotInterval = setInterval(() => {
         if (connection.socket.readyState === WebSocket.OPEN) {
-          connection.socket.send(JSON.stringify({
-            type: "computer-action",
-            action: "takeScreenshot",
-            params: {},
-            id: "periodic-screenshot-" + Date.now()
-          }));
+          connection.socket.send(
+            JSON.stringify({
+              type: "computer-action",
+              action: "takeScreenshot",
+              params: {},
+              id: "periodic-screenshot-" + Date.now(),
+            })
+          );
         }
       }, 5000); // Request screenshot every 5 seconds
 
       connection.socket.on("message", async (message: Buffer) => {
         try {
           const data = JSON.parse(message.toString());
-          console.log(`Received message from client for conversation ${conversationId}:`, data.type);
-          
+          console.log(
+            `Received message from client for conversation ${conversationId}:`,
+            data.type
+          );
+
           // Handle desktop browser messages
-          if (data.type === 'desktop-browser') {
+          if (data.type === "desktop-browser") {
             // Update session activity timestamp
             session.lastActivity = Date.now();
-            
+
             // Process different desktop browser actions
             switch (data.action) {
-              case 'screenshot':
+              case "screenshot":
                 // Screenshot received from desktop browser
                 broadcastToConversation(conversationId, {
                   type: "screenshot",
                   data: { image: data.data.image },
                 });
                 break;
-                
-              case 'console':
+
+              case "console":
                 // Console message received from desktop browser
                 broadcastToConversation(conversationId, {
                   type: "console",
                   data: data.data,
                 });
                 break;
-                
-              case 'status':
+
+              case "status":
                 // Status update received from desktop browser
-                console.log(`Desktop browser status for conversation ${conversationId}: ${data.data.status}`);
+                console.log(
+                  `Desktop browser status for conversation ${conversationId}: ${data.data.status}`
+                );
                 break;
-                
-              case 'url':
+
+              case "url":
                 // URL update received from desktop browser
-                console.log(`Desktop browser URL for conversation ${conversationId}: ${data.data.url}`);
+                console.log(
+                  `Desktop browser URL for conversation ${conversationId}: ${data.data.url}`
+                );
                 break;
-                
-              case 'connect':
+
+              case "connect":
                 // Initial connection message
-                console.log(`Desktop browser connected for conversation ${conversationId}`);
+                console.log(
+                  `Desktop browser connected for conversation ${conversationId}`
+                );
                 break;
-                
-              case 'heartbeat':
+
+              case "heartbeat":
                 // Heartbeat message
                 // Just update the lastActivity timestamp, which we already did
                 break;
@@ -317,30 +346,29 @@ process.on("SIGTERM", async () => {
 server.post<{ Body: ChatMessage }>("/chat", async (request, reply) => {
   try {
     const { message } = request.body;
-    
+
     // Get conversation ID from headers
     const conversationId = request.headers["x-conversation-id"] as string;
-    
+
     if (!conversationId) {
       return reply.code(400).send({
         success: false,
         error: "Missing conversation ID",
       });
     }
-    
+
     // Get or initialize the session for this conversation
     const session = await findOrCreateSession(conversationId);
 
     session.lastActivity = Date.now();
-    
+
     // Add the new user message to the conversation history
     session.conversationHistory.push({
       role: "user",
       content: [{ type: "input_text", text: message }],
     });
 
-    
-    console.log({conversationId})
+    console.log({ conversationId });
     // Run the agent
     session.agent.runFullTurn(session.conversationHistory, {
       printSteps: true,
@@ -364,44 +392,47 @@ server.post<{ Body: ChatMessage }>("/chat", async (request, reply) => {
 });
 
 // API endpoint to interrupt an agent for a specific conversation
-server.post<{ Params: { conversationId: string } }>("/interrupt/:conversationId", async (request, reply) => {
-  try {
-    const { conversationId } = request.params;
-    
-    if (!conversationId) {
-      return reply.code(400).send({
+server.post<{ Params: { conversationId: string } }>(
+  "/interrupt/:conversationId",
+  async (request, reply) => {
+    try {
+      const { conversationId } = request.params;
+
+      if (!conversationId) {
+        return reply.code(400).send({
+          success: false,
+          error: "Missing conversation ID",
+        });
+      }
+
+      const success = interruptAgent(conversationId);
+
+      if (success) {
+        return reply.code(200).send({
+          success: true,
+          message: `Agent interrupted for conversation: ${conversationId}`,
+        });
+      } else {
+        return reply.code(404).send({
+          success: false,
+          error: `No active agent found for conversation: ${conversationId}`,
+        });
+      }
+    } catch (error) {
+      console.error("Error interrupting agent:", error);
+      return reply.code(500).send({
         success: false,
-        error: "Missing conversation ID",
+        error: "Failed to interrupt agent",
       });
     }
-    
-    const success = interruptAgent(conversationId);
-    
-    if (success) {
-      return reply.code(200).send({
-        success: true,
-        message: `Agent interrupted for conversation: ${conversationId}`,
-      });
-    } else {
-      return reply.code(404).send({
-        success: false,
-        error: `No active agent found for conversation: ${conversationId}`,
-      });
-    }
-  } catch (error) {
-    console.error("Error interrupting agent:", error);
-    return reply.code(500).send({
-      success: false,
-      error: "Failed to interrupt agent",
-    });
   }
-});
+);
 
 const start = async () => {
   try {
     // Set up periodic cleanup of inactive sessions
     setInterval(cleanupInactiveSessions, 5 * 60 * 1000); // Check every 5 minutes
-    
+
     await server.listen({ port: 3000, host: "0.0.0.0" });
     console.log("Server running at http://localhost:3000");
   } catch (err) {
