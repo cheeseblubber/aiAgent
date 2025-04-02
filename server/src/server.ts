@@ -70,7 +70,7 @@ interface ChatUpdate {
 }
 
 // Initialize a new session for a conversation
-async function initSessionForConversation(conversationId: string): Promise<ConversationSession> {
+async function findOrCreateSession(conversationId: string): Promise<ConversationSession> {
   // Check if session already exists
   if (conversationSessions.has(conversationId)) {
     console.log(`Found existing session for conversation: ${conversationId}`);
@@ -210,7 +210,7 @@ server.register(async function (server: FastifyInstance) {
       
       console.log({conversationId})
       // Initialize or get session for this conversation
-      const session = await initSessionForConversation(conversationId);
+      const session = await findOrCreateSession(conversationId);
       session.connectedClients.add(connection.socket);
       
       // Set the WebSocket for the RemoteComputer
@@ -329,20 +329,20 @@ server.post<{ Body: ChatMessage }>("/chat", async (request, reply) => {
     }
     
     // Get or initialize the session for this conversation
-    const session = await initSessionForConversation(conversationId);
+    const session = await findOrCreateSession(conversationId);
+
     session.lastActivity = Date.now();
     
-    // Create a conversation history with the user message
-    const conversationHistory = [
-      {
-        role: "user",
-        content: [{ type: "input_text", text: message }],
-      },
-    ];
+    // Add the new user message to the conversation history
+    session.conversationHistory.push({
+      role: "user",
+      content: [{ type: "input_text", text: message }],
+    });
 
+    
     console.log({conversationId})
     // Run the agent
-    session.agent.runFullTurn(conversationHistory, {
+    session.agent.runFullTurn(session.conversationHistory, {
       printSteps: true,
 
       messageCallback: (message, type) => {
